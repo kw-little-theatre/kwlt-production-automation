@@ -40,6 +40,17 @@ Currently there's one global webhook. Support per-show webhooks so reminders pos
 
 ---
 
+### Trim the task template
+The current task template has ~50 tasks (plus recurring expansions), which is too many. Review with Show Support to identify which tasks genuinely need automated reminders vs. which are just reference items that belong in the handbook. The template should focus on tasks that are:
+- Frequently forgotten
+- Have hard external deadlines (e.g., poster approval, rights invoices)
+- Require coordination between multiple people
+- Have policy-mandated timelines (e.g., 5-day audition notification rule)
+
+Tasks that are "nice to know" but self-evident to experienced production teams should be removed from automated reminders.
+
+---
+
 ## Completed
 
 _(Move items here as they're implemented)_

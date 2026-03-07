@@ -11,7 +11,7 @@
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('🎭 KWLT Automation')
-    .addItem('➕ Create New Show', 'showCreateShowDialog')
+    .addItem('📋 Generate Show Task Tabs', 'showCreateShowDialog')
     .addItem('🔄 Refresh Season Overview', 'refreshSeasonOverview')
     .addSeparator()
     .addItem('▶️ Run Reminders Now (test)', 'runDailyReminders')
@@ -70,7 +70,9 @@ function _createConfigSheet(ss) {
 
   const data = [
     ['Setting', 'Value', 'Description'],
-    ['Slack Webhook URL', '', 'Incoming webhook URL for the #show-reminders channel (or per-show channel)'],
+    ['Slack Webhook URL', '', 'Incoming webhook URL (fallback — only needed if NOT using Bot Token)'],
+    ['Slack Bot Token', '', 'Bot User OAuth Token from your Slack app (starts with xoxb-). Recommended over webhook.'],
+    ['Slack Default Channel', '', 'Default channel for test messages and shows without a channel (e.g., #show-reminders)'],
     ['Escalation Email', '', 'Email address for overdue task escalations (e.g., executive-producer@kwlt.org)'],
     ['Show Support Email', '', 'Show Support Committee member\'s email (receives daily digest)'],
     ['Advance Reminder Days', REMINDER_ADVANCE_DAYS, 'Days before deadline for the first "heads up" reminder'],
@@ -105,17 +107,19 @@ function _createShowSetupSheet(ss) {
   const headers = [
     'Show Name',
     'Slack Channel',
-    // Anchor dates
-    ANCHOR.SEASON_ANNOUNCEMENT,
-    ANCHOR.ORIENTATION,
-    ANCHOR.AUDITION_START,
-    ANCHOR.AUDITION_END,
-    ANCHOR.READTHROUGH,
-    ANCHOR.BUILD_POSSESSION,
-    ANCHOR.TECH_WEEKEND_START,
-    ANCHOR.TECH_WEEKEND_END,
-    ANCHOR.OPENING_NIGHT,
-    ANCHOR.CLOSING_NIGHT,
+    // Required anchor dates
+    ANCHOR.AUDITION_START + ' *',
+    ANCHOR.BUILD_POSSESSION + ' *',
+    ANCHOR.OPENING_NIGHT + ' *',
+    ANCHOR.CLOSING_NIGHT + ' *',
+    // Auto-derived (leave blank to auto-compute, or enter to override)
+    ANCHOR.AUDITION_END + ' (auto)',
+    ANCHOR.TECH_WEEKEND_START + ' (auto)',
+    ANCHOR.TECH_WEEKEND_END + ' (auto)',
+    // Optional (tasks skipped if blank)
+    ANCHOR.SEASON_ANNOUNCEMENT + ' (opt)',
+    ANCHOR.ORIENTATION + ' (opt)',
+    ANCHOR.READTHROUGH + ' (opt)',
     // Production team contacts
     'Director Name',
     'Director Email',
@@ -136,9 +140,17 @@ function _createShowSetupSheet(ss) {
   sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold').setBackground('#d1fae5');
   sheet.setFrozenRows(1);
 
+  // Color-code date header groups
+  // Required = green
+  sheet.getRange(1, 3, 1, 4).setBackground('#bbf7d0');
+  // Auto-derived = light blue
+  sheet.getRange(1, 7, 1, 3).setBackground('#bfdbfe');
+  // Optional = light gray
+  sheet.getRange(1, 10, 1, 3).setBackground('#e5e7eb');
+
   // Format date columns
   for (let i = 3; i <= 12; i++) {
-    sheet.setColumnWidth(i, 130);
+    sheet.setColumnWidth(i, 160);
   }
   sheet.setColumnWidth(1, 200); // Show Name
   sheet.setColumnWidth(2, 180); // Slack Channel

@@ -95,6 +95,9 @@ function runDailyReminders() {
     _sendDailyDigest(digestItems, config);
   }
 
+  // Refresh the Season Overview so it's always current
+  _refreshSeasonOverviewSilent(ss);
+
   Logger.log('Daily reminders complete. Processed ' + digestItems.length + ' items across ' + activeShows.length + ' shows.');
 }
 
@@ -159,15 +162,17 @@ function _executeAction(action, context, config) {
   if ((context.notifyVia === 'slack' || context.notifyVia === 'both') && config.sendSlack) {
     // Try rich block message with "Mark Done" button first, fall back to plain text
     if (config.webAppUrl) {
-      const ok = sendSlackBlockMessageWithButton(config.slackWebhookUrl, context, action);
-      _logSend(config.ss, context, 'slack', action, ok);
+      const result = sendSlackBlockMessageWithButton(config, context, action);
+      const ok = result && result.ok;
+      _logSend(config.ss, context, 'slack', action, ok, ok ? '' : (result && result.error || 'Unknown error'));
       if (ok) anySuccess = true;
     } else {
       const slackTemplate = _getTemplate(config.ss, _slackTemplateName(action));
       if (slackTemplate) {
         const message = _renderTemplate(slackTemplate, context);
-        const ok = sendSlackMessage(config.slackWebhookUrl, message, context.slackChannel);
-        _logSend(config.ss, context, 'slack', action, ok);
+        const result = sendSlack(config, message, context.slackChannel);
+        const ok = result && result.ok;
+        _logSend(config.ss, context, 'slack', action, ok, ok ? '' : (result && result.error || 'Unknown error'));
         if (ok) anySuccess = true;
       }
     }
@@ -325,6 +330,8 @@ function _loadConfig(ss) {
   const config = {
     ss: ss,
     slackWebhookUrl: '',
+    slackBotToken: '',
+    slackDefaultChannel: '',
     escalationEmail: '',
     showSupportEmail: '',
     advanceReminderDays: REMINDER_ADVANCE_DAYS,
@@ -341,6 +348,8 @@ function _loadConfig(ss) {
     const val = data[i][1];
     switch (key) {
       case 'Slack Webhook URL':       config.slackWebhookUrl = val; break;
+      case 'Slack Bot Token':           config.slackBotToken = val; break;
+      case 'Slack Default Channel':     config.slackDefaultChannel = val; break;
       case 'Escalation Email':        config.escalationEmail = val; break;
       case 'Show Support Email':      config.showSupportEmail = val; break;
       case 'Advance Reminder Days':   config.advanceReminderDays = Number(val) || REMINDER_ADVANCE_DAYS; break;

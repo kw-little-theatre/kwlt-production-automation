@@ -121,6 +121,66 @@ function refreshSeasonOverview() {
   );
 }
 
+/**
+ * Silent version of refreshSeasonOverview for use in the daily trigger.
+ * Same logic, no UI alerts.
+ */
+function _refreshSeasonOverviewSilent(ss) {
+  const sheet = ss.getSheetByName(SHEET_SEASON_OVERVIEW);
+  if (!sheet) return;
+
+  const today = _stripTime(new Date());
+  const activeShows = _getActiveShows(ss);
+  const allTasks = [];
+
+  for (const show of activeShows) {
+    const tabName = SHOW_TAB_PREFIX + show.name;
+    const showSheet = ss.getSheetByName(tabName);
+    if (!showSheet) continue;
+
+    const data = showSheet.getDataRange().getValues();
+    for (let row = 1; row < data.length; row++) {
+      const status = data[row][COL.STATUS];
+      if (status === STATUS.DONE || status === STATUS.SKIPPED) continue;
+
+      const deadline = _stripTime(data[row][COL.COMPUTED_DATE]);
+      if (!deadline || !(deadline instanceof Date) || isNaN(deadline.getTime())) continue;
+
+      const daysUntil = _daysBetween(today, deadline);
+
+      if (daysUntil <= 30) {
+        allTasks.push([
+          show.name,
+          data[row][COL.TASK],
+          data[row][COL.RESPONSIBLE],
+          deadline,
+          status,
+          daysUntil,
+          data[row][COL.GENERAL_RULE] || '',
+        ]);
+      }
+    }
+  }
+
+  allTasks.sort((a, b) => a[5] - b[5]);
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+    sheet.getRange(2, 1, lastRow - 1, 7).clear();
+  }
+
+  if (allTasks.length === 0) {
+    sheet.getRange(2, 1).setValue('No upcoming tasks in the next 30 days. All clear! 🎉');
+    sheet.getRange(2, 1).setFontStyle('italic').setFontColor('#059669');
+    return;
+  }
+
+  sheet.getRange(2, 1, allTasks.length, 7).setValues(allTasks);
+  sheet.getRange(2, 4, allTasks.length, 1).setNumberFormat('yyyy-mm-dd');
+
+  Logger.log('Season Overview refreshed: ' + allTasks.length + ' tasks across ' + activeShows.length + ' shows.');
+}
+
 // ─── Trigger Management ───────────────────────────────────────────────────────
 
 /**

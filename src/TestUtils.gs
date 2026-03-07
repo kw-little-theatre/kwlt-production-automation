@@ -28,7 +28,7 @@ function testAllMessageTypes() {
     deadline: Utilities.formatDate(tomorrow, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
     daysUntil: 7,
     daysOverdue: 0,
-    slackChannel: '',
+    slackChannel: config.slackDefaultChannel || '',
     handbookUrl: config.handbookUrl || 'https://example.com/handbook',
     notifyVia: 'both',
     markDoneUrl: config.webAppUrl
@@ -38,34 +38,36 @@ function testAllMessageTypes() {
 
   const results = [];
 
+  const slackReady = (config.slackBotToken || config.slackWebhookUrl) && config.sendSlack;
+
   // ── Test 1: Advance Reminder (Slack) ────────────────────────────────────
-  if (config.slackWebhookUrl && config.sendSlack) {
+  if (slackReady) {
     if (config.webAppUrl) {
-      const ok = sendSlackBlockMessageWithButton(config.slackWebhookUrl, context, 'advance');
+      const ok = sendSlackBlockMessageWithButton(config, context, 'advance');
       results.push('Slack advance (with button): ' + (ok ? '✅ sent' : '❌ failed'));
     } else {
       const tpl = _getTemplate(ss, 'Advance Reminder');
       if (tpl) {
         const msg = _renderTemplate(tpl, context);
-        const ok = sendSlackMessage(config.slackWebhookUrl, msg);
+        const ok = sendSlack(config, msg, context.slackChannel);
         results.push('Slack advance (plain): ' + (ok ? '✅ sent' : '❌ failed'));
       }
     }
   } else {
-    results.push('Slack advance: ⏭ skipped (no webhook or Slack disabled)');
+    results.push('Slack advance: ⏭ skipped (no token/webhook or Slack disabled)');
   }
 
   // ── Test 2: Urgent Reminder (Slack) ─────────────────────────────────────
-  if (config.slackWebhookUrl && config.sendSlack) {
+  if (slackReady) {
     const urgentContext = Object.assign({}, context, { daysUntil: 1 });
     if (config.webAppUrl) {
-      const ok = sendSlackBlockMessageWithButton(config.slackWebhookUrl, urgentContext, 'urgent');
+      const ok = sendSlackBlockMessageWithButton(config, urgentContext, 'urgent');
       results.push('Slack urgent (with button): ' + (ok ? '✅ sent' : '❌ failed'));
     } else {
       const tpl = _getTemplate(ss, 'Urgent Reminder');
       if (tpl) {
         const msg = _renderTemplate(tpl, urgentContext);
-        const ok = sendSlackMessage(config.slackWebhookUrl, msg);
+        const ok = sendSlack(config, msg, context.slackChannel);
         results.push('Slack urgent (plain): ' + (ok ? '✅ sent' : '❌ failed'));
       }
     }
@@ -74,10 +76,10 @@ function testAllMessageTypes() {
   }
 
   // ── Test 3: Overdue (Slack) ─────────────────────────────────────────────
-  if (config.slackWebhookUrl && config.sendSlack) {
+  if (slackReady) {
     const overdueContext = Object.assign({}, context, { daysUntil: -3, daysOverdue: 3 });
     if (config.webAppUrl) {
-      const ok = sendSlackBlockMessageWithButton(config.slackWebhookUrl, overdueContext, 'overdue');
+      const ok = sendSlackBlockMessageWithButton(config, overdueContext, 'overdue');
       results.push('Slack overdue (with button): ' + (ok ? '✅ sent' : '❌ failed'));
     }
   } else {

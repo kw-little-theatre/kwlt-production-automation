@@ -37,28 +37,27 @@ function showCreateShowDialog() {
     return;
   }
 
-  // Use a simple prompt instead of an HTML dialog
-  const showList = shows.map(function(s, i) { return (i + 1) + '. ' + s; }).join('\n');
-  const response = ui.prompt(
-    'Create Show Timeline',
-    'Available shows:\n' + showList + '\n\nType the show name exactly as shown above:',
-    ui.ButtonSet.OK_CANCEL
+  // Confirm before creating
+  const showList = shows.map(function(s, i) { return '• ' + s; }).join('\n');
+  const confirm = ui.alert(
+    'Create Timelines',
+    'This will create timeline tabs for ' + shows.length + ' show(s):\n\n' + showList + '\n\nProceed?',
+    ui.ButtonSet.YES_NO
   );
 
-  if (response.getSelectedButton() !== ui.Button.OK) return;
+  if (confirm !== ui.Button.YES) return;
 
-  const chosenName = response.getResponseText().trim();
-  if (shows.indexOf(chosenName) === -1) {
-    ui.alert('Error', '"' + chosenName + '" doesn\'t match any available show.\n\nPlease type the name exactly as it appears in Show Setup.', ui.ButtonSet.OK);
-    return;
+  const results = [];
+  for (const showName of shows) {
+    try {
+      createShowTimeline(showName);
+      results.push('✅ ' + showName);
+    } catch (e) {
+      results.push('❌ ' + showName + ': ' + e.message);
+    }
   }
 
-  try {
-    const result = createShowTimeline(chosenName);
-    ui.alert('✅ Done!', result, ui.ButtonSet.OK);
-  } catch (e) {
-    ui.alert('❌ Error', e.message, ui.ButtonSet.OK);
-  }
+  ui.alert('Done', results.join('\n'), ui.ButtonSet.OK);
 }
 
 // ─── Create Show Timeline ─────────────────────────────────────────────────────
@@ -235,7 +234,10 @@ function _getAnchorDates(ss, showName) {
 
   const anchors = {};
   for (const key of Object.values(ANCHOR)) {
-    const colIdx = headers.indexOf(key);
+    // Headers may have suffixes like " *", " (auto)", " (opt)" — match by startsWith
+    const colIdx = headers.findIndex(function(h) {
+      return String(h).indexOf(key) === 0;
+    });
     if (colIdx === -1) continue;
     const val = showRow[colIdx];
     if (val instanceof Date) {
