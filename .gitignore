@@ -3,6 +3,7 @@ node_modules/
 
 # clasp
 .clasprc.json
+.clasp.json
 
 # OS files
 .DS_Store
