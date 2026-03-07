@@ -19,6 +19,7 @@ function onOpen() {
     .addItem('⏰ Install Daily Trigger', 'installDailyTrigger')
     .addItem('🛑 Remove All Triggers', 'removeAllTriggers')
     .addSeparator()
+    .addItem('🔐 Manage Secrets', 'manageSecrets')
     .addItem('🏗️ Initial Setup (run once)', 'initialSetup')
     .addToUi();
 }
@@ -70,19 +71,16 @@ function _createConfigSheet(ss) {
 
   const data = [
     ['Setting', 'Value', 'Description'],
-    ['Slack Webhook URL', '', 'Incoming webhook URL (fallback — only needed if NOT using Bot Token)'],
-    ['Slack Bot Token', '', 'Bot User OAuth Token from your Slack app (starts with xoxb-). Recommended over webhook.'],
     ['Slack Default Channel', '', 'Default channel for test messages and shows without a channel (e.g., #show-reminders)'],
-    ['Escalation Email', '', 'Email address for overdue task escalations (e.g., executive-producer@kwlt.org)'],
-    ['Show Support Email', '', 'Show Support Committee member\'s email (receives daily digest)'],
     ['Advance Reminder Days', REMINDER_ADVANCE_DAYS, 'Days before deadline for the first "heads up" reminder'],
     ['Urgent Reminder Days', REMINDER_URGENT_DAYS, 'Days before deadline for the urgent reminder'],
     ['Overdue Escalation Days', OVERDUE_ESCALATION_DAYS, 'Days past deadline before escalation email is sent'],
     ['Send Email Reminders', 'TRUE', 'Set to FALSE to disable email reminders (Slack only)'],
     ['Send Slack Reminders', 'TRUE', 'Set to FALSE to disable Slack reminders (email only)'],
     ['Handbook URL', '', 'Link to the KWLT Production Handbook (included in reminder messages)'],
-    ['Web App URL', '', 'Deployed web app URL for "Mark Done" links (Deploy → New deployment → Web app)'],
-    ['Slack Interactivity URL', '', 'Same as Web App URL — paste into Slack app Interactivity settings for button callbacks'],
+    ['', '', ''],
+    ['⚠️ SENSITIVE SETTINGS', '', 'Tokens, emails, and URLs are stored securely via Menu → 🔐 Manage Secrets'],
+    ['', '', 'They are NOT visible in this sheet. Only editors with script access can view/change them.'],
   ];
 
   sheet.getRange(1, 1, data.length, 3).setValues(data);

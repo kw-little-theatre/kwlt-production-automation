@@ -327,39 +327,37 @@ function _loadConfig(ss) {
   const sheet = ss.getSheetByName(SHEET_CONFIG);
   const data = sheet ? sheet.getDataRange().getValues() : [];
 
+  // Load secrets from Script Properties (not visible in the spreadsheet)
+  const props = PropertiesService.getScriptProperties();
+
   const config = {
     ss: ss,
-    slackWebhookUrl: '',
-    slackBotToken: '',
+    slackWebhookUrl: props.getProperty('SLACK_WEBHOOK_URL') || '',
+    slackBotToken: props.getProperty('SLACK_BOT_TOKEN') || '',
+    escalationEmail: props.getProperty('ESCALATION_EMAIL') || '',
+    showSupportEmail: props.getProperty('SHOW_SUPPORT_EMAIL') || '',
+    webAppUrl: props.getProperty('WEB_APP_URL') || '',
     slackDefaultChannel: '',
-    escalationEmail: '',
-    showSupportEmail: '',
     advanceReminderDays: REMINDER_ADVANCE_DAYS,
     urgentReminderDays: REMINDER_URGENT_DAYS,
     overdueEscalationDays: OVERDUE_ESCALATION_DAYS,
     sendEmail: true,
     sendSlack: true,
     handbookUrl: '',
-    webAppUrl: '',
   };
 
+  // Load non-sensitive settings from the sheet
   for (let i = 1; i < data.length; i++) {
     const key = data[i][0];
     const val = data[i][1];
     switch (key) {
-      case 'Slack Webhook URL':       config.slackWebhookUrl = val; break;
-      case 'Slack Bot Token':           config.slackBotToken = val; break;
       case 'Slack Default Channel':     config.slackDefaultChannel = val; break;
-      case 'Escalation Email':        config.escalationEmail = val; break;
-      case 'Show Support Email':      config.showSupportEmail = val; break;
       case 'Advance Reminder Days':   config.advanceReminderDays = Number(val) || REMINDER_ADVANCE_DAYS; break;
       case 'Urgent Reminder Days':    config.urgentReminderDays = Number(val) || REMINDER_URGENT_DAYS; break;
       case 'Overdue Escalation Days': config.overdueEscalationDays = Number(val) || OVERDUE_ESCALATION_DAYS; break;
       case 'Send Email Reminders':    config.sendEmail = String(val).toUpperCase() !== 'FALSE'; break;
       case 'Send Slack Reminders':    config.sendSlack = String(val).toUpperCase() !== 'FALSE'; break;
       case 'Handbook URL':            config.handbookUrl = val; break;
-      case 'Web App URL':             config.webAppUrl = val; break;
-      case 'Slack Interactivity URL': break; // informational only — same as Web App URL
     }
   }
 
