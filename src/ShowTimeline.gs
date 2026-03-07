@@ -82,11 +82,12 @@ function createShowTimeline(showName) {
     throw new Error('Could not find show "' + showName + '" in Show Setup, or dates are missing. Please fill in the anchor dates and try again.');
   }
 
-  // Check we have at least a few key anchors
-  const keyAnchors = [ANCHOR.AUDITION_START, ANCHOR.OPENING_NIGHT, ANCHOR.CLOSING_NIGHT];
+  // Check we have the minimum required anchors (4 dates)
+  // Other dates are either auto-derived or optional.
+  const keyAnchors = [ANCHOR.AUDITION_START, ANCHOR.BUILD_POSSESSION, ANCHOR.OPENING_NIGHT, ANCHOR.CLOSING_NIGHT];
   const missing = keyAnchors.filter(a => !anchors[a]);
   if (missing.length > 0) {
-    throw new Error('Missing required dates: ' + missing.join(', ') + '. Please fill these in on the Show Setup sheet.');
+    throw new Error('Missing required dates: ' + missing.join(', ') + '. Please fill these in on the Show Setup sheet.\n\nNote: Audition End, Tech Weekend Start/End are auto-computed if left blank. Season Announcement, Orientation, and Readthrough are optional.');
   }
 
   // Create the sheet
@@ -109,23 +110,54 @@ function createShowTimeline(showName) {
 
   for (const task of tasks) {
     if (task.recurring) {
-      // Expand recurring tasks into weekly instances
-      const weeklyRows = _expandRecurringTask(task, anchors);
-      rows.push(...weeklyRows);
+      // Check if the anchor exists before expanding
+      if (!anchors[task.anchorRef]) {
+        rows.push([
+          task.task + ' (weekly)',
+          task.responsible,
+          task.generalRule,
+          task.anchorRef,
+          task.offsetDays,
+          '',
+          STATUS.SKIPPED,
+          'none',
+          '',
+          'Skipped — ' + task.anchorRef + ' date not set',
+        ]);
+      } else {
+        const weeklyRows = _expandRecurringTask(task, anchors);
+        rows.push(...weeklyRows);
+      }
     } else {
       const computedDate = _computeDate(anchors, task.anchorRef, task.offsetDays);
-      rows.push([
-        task.task,
-        task.responsible,
-        task.generalRule,
-        task.anchorRef,
-        task.offsetDays,
-        computedDate,
-        STATUS.PENDING,
-        task.notifyVia,
-        '',  // Last Notified
-        '',  // Notes
-      ]);
+      // If anchor is missing, skip the task gracefully
+      if (computedDate === '') {
+        rows.push([
+          task.task,
+          task.responsible,
+          task.generalRule,
+          task.anchorRef,
+          task.offsetDays,
+          '',
+          STATUS.SKIPPED,
+          'none',
+          '',
+          'Skipped — ' + task.anchorRef + ' date not set',
+        ]);
+      } else {
+        rows.push([
+          task.task,
+          task.responsible,
+          task.generalRule,
+          task.anchorRef,
+          task.offsetDays,
+          computedDate,
+          STATUS.PENDING,
+          task.notifyVia,
+          '',
+          '',
+        ]);
+      }
     }
   }
 
@@ -212,6 +244,29 @@ function _getAnchorDates(ss, showName) {
       const parsed = new Date(val);
       if (!isNaN(parsed)) anchors[key] = parsed;
     }
+  }
+
+  // ── Auto-derive missing dates from the ones we have ──────────────────
+
+  // Audition End = Audition Start + 2 days (3-day audition weekend)
+  if (!anchors[ANCHOR.AUDITION_END] && anchors[ANCHOR.AUDITION_START]) {
+    const d = new Date(anchors[ANCHOR.AUDITION_START]);
+    d.setDate(d.getDate() + 2);
+    anchors[ANCHOR.AUDITION_END] = d;
+  }
+
+  // Tech Weekend Start = Opening Night - 6 days (always the Saturday before Friday opening)
+  if (!anchors[ANCHOR.TECH_WEEKEND_START] && anchors[ANCHOR.OPENING_NIGHT]) {
+    const d = new Date(anchors[ANCHOR.OPENING_NIGHT]);
+    d.setDate(d.getDate() - 6);
+    anchors[ANCHOR.TECH_WEEKEND_START] = d;
+  }
+
+  // Tech Weekend End = Tech Weekend Start + 1 day
+  if (!anchors[ANCHOR.TECH_WEEKEND_END] && anchors[ANCHOR.TECH_WEEKEND_START]) {
+    const d = new Date(anchors[ANCHOR.TECH_WEEKEND_START]);
+    d.setDate(d.getDate() + 1);
+    anchors[ANCHOR.TECH_WEEKEND_END] = d;
   }
 
   return anchors;
