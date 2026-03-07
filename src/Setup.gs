@@ -15,6 +15,7 @@ function onOpen() {
     .addItem('🔄 Refresh Season Overview', 'refreshSeasonOverview')
     .addSeparator()
     .addItem('▶️ Run Reminders Now (test)', 'runDailyReminders')
+    .addItem('🧪 Test All Message Types', 'testAllMessageTypes')
     .addItem('⏰ Install Daily Trigger', 'installDailyTrigger')
     .addItem('🛑 Remove All Triggers', 'removeAllTriggers')
     .addSeparator()

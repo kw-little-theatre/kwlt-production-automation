@@ -218,9 +218,8 @@ function _htmlResponse(title, body, success) {
     '<div class="badge">KWLT Production Automation</div>' +
     '</div></body></html>';
 
-  return HtmlService.createHtmlOutput(html)
-    .setTitle(title)
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  return ContentService.createTextOutput(html)
+    .setMimeType(ContentService.MimeType.HTML);
 }
 
 function _escapeHtml(str) {

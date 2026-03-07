@@ -9,10 +9,11 @@
 // ─── Create Show Dialog ───────────────────────────────────────────────────────
 
 function showCreateShowDialog() {
+  const ui = SpreadsheetApp.getUi();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const setupSheet = ss.getSheetByName(SHEET_SHOW_SETUP);
   if (!setupSheet) {
-    SpreadsheetApp.getUi().alert('Error', 'Please run Initial Setup first.', SpreadsheetApp.getUi().ButtonSet.OK);
+    ui.alert('Error', 'Please run Initial Setup first.', ui.ButtonSet.OK);
     return;
   }
 
@@ -27,39 +28,37 @@ function showCreateShowDialog() {
   }
 
   if (shows.length === 0) {
-    SpreadsheetApp.getUi().alert(
+    ui.alert(
       'No Shows Available',
       'Either all shows already have timelines, or no shows have been entered in the 🎭 Show Setup sheet.\n\n' +
       'Add a new row in Show Setup with dates, then try again.',
-      SpreadsheetApp.getUi().ButtonSet.OK
+      ui.ButtonSet.OK
     );
     return;
   }
 
-  // Build a simple HTML dialog for show selection
-  const html = HtmlService.createHtmlOutput(
-    '<style>' +
-    'body { font-family: Arial, sans-serif; padding: 16px; }' +
-    'select { width: 100%; padding: 8px; margin: 12px 0; font-size: 14px; }' +
-    'button { padding: 10px 24px; background: #059669; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }' +
-    'button:hover { background: #047857; }' +
-    '</style>' +
-    '<p>Select a show to generate its timeline:</p>' +
-    '<select id="showSelect">' +
-    shows.map(s => '<option value="' + s + '">' + s + '</option>').join('') +
-    '</select><br><br>' +
-    '<button onclick="create()">Create Timeline</button>' +
-    '<script>' +
-    'function create() {' +
-    '  var show = document.getElementById("showSelect").value;' +
-    '  google.script.run.withSuccessHandler(function() {' +
-    '    google.script.host.close();' +
-    '  }).createShowTimeline(show);' +
-    '}' +
-    '</script>'
-  ).setWidth(400).setHeight(200);
+  // Use a simple prompt instead of an HTML dialog
+  const showList = shows.map(function(s, i) { return (i + 1) + '. ' + s; }).join('\n');
+  const response = ui.prompt(
+    'Create Show Timeline',
+    'Available shows:\n' + showList + '\n\nType the show name exactly as shown above:',
+    ui.ButtonSet.OK_CANCEL
+  );
 
-  SpreadsheetApp.getUi().showModalDialog(html, 'Create Show Timeline');
+  if (response.getSelectedButton() !== ui.Button.OK) return;
+
+  const chosenName = response.getResponseText().trim();
+  if (shows.indexOf(chosenName) === -1) {
+    ui.alert('Error', '"' + chosenName + '" doesn\'t match any available show.\n\nPlease type the name exactly as it appears in Show Setup.', ui.ButtonSet.OK);
+    return;
+  }
+
+  try {
+    const result = createShowTimeline(chosenName);
+    ui.alert('✅ Done!', result, ui.ButtonSet.OK);
+  } catch (e) {
+    ui.alert('❌ Error', e.message, ui.ButtonSet.OK);
+  }
 }
 
 // ─── Create Show Timeline ─────────────────────────────────────────────────────
@@ -74,15 +73,20 @@ function createShowTimeline(showName) {
 
   // Don't duplicate
   if (ss.getSheetByName(tabName)) {
-    SpreadsheetApp.getUi().alert('Tab "' + tabName + '" already exists.');
-    return;
+    return 'Tab "' + tabName + '" already exists.';
   }
 
   // Get anchor dates for this show
   const anchors = _getAnchorDates(ss, showName);
   if (!anchors) {
-    SpreadsheetApp.getUi().alert('Could not find show "' + showName + '" in Show Setup, or dates are incomplete.');
-    return;
+    throw new Error('Could not find show "' + showName + '" in Show Setup, or dates are missing. Please fill in the anchor dates and try again.');
+  }
+
+  // Check we have at least a few key anchors
+  const keyAnchors = [ANCHOR.AUDITION_START, ANCHOR.OPENING_NIGHT, ANCHOR.CLOSING_NIGHT];
+  const missing = keyAnchors.filter(a => !anchors[a]);
+  if (missing.length > 0) {
+    throw new Error('Missing required dates: ' + missing.join(', ') + '. Please fill these in on the Show Setup sheet.');
   }
 
   // Create the sheet
@@ -174,12 +178,7 @@ function createShowTimeline(showName) {
   // Mark as created in Show Setup
   _markTimelineCreated(ss, showName);
 
-  SpreadsheetApp.getUi().alert(
-    '✅ Done!',
-    'Timeline for "' + showName + '" created with ' + rows.length + ' tasks.\n\n' +
-    'Review the dates in the "' + tabName + '" tab, then set Active? = TRUE in Show Setup to enable reminders.',
-    SpreadsheetApp.getUi().ButtonSet.OK
-  );
+  return '✅ Timeline for "' + showName + '" created with ' + rows.length + ' tasks. Review dates in the "' + tabName + '" tab, then set Active? = TRUE.';
 }
 
 // ─── Anchor Date Retrieval ────────────────────────────────────────────────────

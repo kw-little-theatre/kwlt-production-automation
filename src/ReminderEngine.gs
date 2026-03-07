@@ -153,7 +153,6 @@ function _statusAfterAction(action) {
  * @returns {boolean} — true if at least one channel succeeded
  */
 function _executeAction(action, context, config) {
-  const templateName = _templateNameForAction(action, context.notifyVia);
   let anySuccess = false;
 
   // Slack
