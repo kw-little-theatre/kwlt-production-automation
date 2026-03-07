@@ -24,9 +24,15 @@ const SECRETS = [
     sensitive: true,
   },
   {
+    key: 'SHOW_SUPPORT_CHANNEL',
+    label: 'Show Support Channel',
+    description: 'Slack channel for digest and escalation alerts (e.g., #comm-show-support-private)',
+    sensitive: false,
+  },
+  {
     key: 'SHOW_SUPPORT_EMAIL',
     label: 'Show Support Email',
-    description: 'Receives the daily digest (e.g., show-support@kwlt.org)',
+    description: 'Receives the daily digest (e.g., show-support@kwlt.org) — optional if using Slack',
     sensitive: false,
   },
   {

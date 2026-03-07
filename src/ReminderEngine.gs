@@ -62,6 +62,7 @@ function runDailyReminders() {
           daysUntil: daysUntil,
           daysOverdue: daysUntil < 0 ? Math.abs(daysUntil) : 0,
           slackChannel: show.slackChannel,
+          showEmail: show.showEmail,
           handbookUrl: config.handbookUrl,
           notifyVia: notifyVia,
           markDoneUrl: buildMarkDoneUrl(config.webAppUrl, show.name, taskData[COL.TASK]),
@@ -90,9 +91,9 @@ function runDailyReminders() {
     }
   }
 
-  // Send daily digest to show support
-  if (digestItems.length > 0 && config.showSupportEmail) {
-    _sendDailyDigest(digestItems, config);
+  // Send daily digest to show support Slack channel
+  if (digestItems.length > 0 && config.showSupportChannel) {
+    _sendDailyDigestSlack(digestItems, config);
   }
 
   // Refresh the Season Overview so it's always current
@@ -195,16 +196,16 @@ function _executeAction(action, context, config) {
     }
   }
 
-  // Overdue escalation always goes to the escalation email
-  if (action === 'overdue' && config.escalationEmail) {
-    const escTemplate = _getTemplate(config.ss, 'Overdue Escalation');
-    if (escTemplate) {
-      const subject = _renderTemplate(escTemplate.subject, context);
-      const body = _renderTemplate(escTemplate.body, context);
-      const ok = sendEmailReminder(config.escalationEmail, subject, body);
-      _logSend(config.ss, context, 'email (escalation)', action, ok);
-      if (ok) anySuccess = true;
-    }
+  // Overdue escalation goes to the show support Slack channel
+  if (action === 'overdue' && config.showSupportChannel) {
+    const escText = '🚨 *Overdue Task — ' + context.showName + '*\n\n' +
+      '*' + context.task + '* is now ' + context.daysOverdue + ' days overdue (deadline: ' + context.deadline + ')\n' +
+      'Responsible: ' + context.responsible + '\n' +
+      'Timing: ' + context.generalRule +
+      (context.markDoneUrl ? '\n\n<' + context.markDoneUrl + '|Mark Done>' : '');
+    const escResult = sendSlack(config, escText, config.showSupportChannel);
+    _logSend(config.ss, context, 'slack (escalation)', action, escResult && escResult.ok, escResult && !escResult.ok ? escResult.error : '');
+    if (escResult && escResult.ok) anySuccess = true;
   }
 
   return anySuccess;
@@ -277,8 +278,12 @@ function _renderTemplate(template, context) {
  * the show's contact info in the Show Setup sheet.
  */
 function _resolveRecipientEmail(context, config) {
+  // All reminder emails go to the show's shared email address
+  if (context.showEmail) return context.showEmail;
+
+  // Fallback: look up individual team member emails
   const setupSheet = config.ss.getSheetByName(SHEET_SHOW_SETUP);
-  if (!setupSheet) return config.showSupportEmail; // fallback
+  if (!setupSheet) return null;
 
   const data = setupSheet.getDataRange().getValues();
   const headers = data[0];
@@ -290,7 +295,7 @@ function _resolveRecipientEmail(context, config) {
       break;
     }
   }
-  if (!showRow) return config.showSupportEmail;
+  if (!showRow) return context.showEmail || null;
 
   // Map responsible party to email column
   const responsible = (context.responsible || '').toLowerCase();
@@ -314,8 +319,8 @@ function _resolveRecipientEmail(context, config) {
     }
   }
 
-  // Fallback to show support email
-  return config.showSupportEmail;
+  // Fallback to show email
+  return context.showEmail || null;
 }
 
 // ─── Config Loader ────────────────────────────────────────────────────────────
@@ -334,6 +339,7 @@ function _loadConfig(ss) {
     ss: ss,
     slackWebhookUrl: props.getProperty('SLACK_WEBHOOK_URL') || '',
     slackBotToken: props.getProperty('SLACK_BOT_TOKEN') || '',
+    showSupportChannel: props.getProperty('SHOW_SUPPORT_CHANNEL') || '',
     escalationEmail: props.getProperty('ESCALATION_EMAIL') || '',
     showSupportEmail: props.getProperty('SHOW_SUPPORT_EMAIL') || '',
     webAppUrl: props.getProperty('WEB_APP_URL') || '',
@@ -377,6 +383,7 @@ function _getActiveShows(ss) {
   const headers = data[0];
   const nameCol = 0;
   const slackCol = headers.indexOf('Slack Channel');
+  const emailCol = headers.indexOf('Show Email');
   const activeCol = headers.indexOf('Active?');
 
   const shows = [];
@@ -386,10 +393,50 @@ function _getActiveShows(ss) {
       shows.push({
         name: data[i][nameCol],
         slackChannel: slackCol !== -1 ? data[i][slackCol] : '',
+        showEmail: emailCol !== -1 ? data[i][emailCol] : '',
       });
     }
   }
   return shows;
+}
+
+// ─── Daily Digest via Slack ────────────────────────────────────────────────────
+
+/**
+ * Sends a daily digest summary to the Show Support Slack channel.
+ */
+function _sendDailyDigestSlack(digestItems, config) {
+  if (!config.showSupportChannel) return;
+
+  const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+
+  // Group by show
+  const byShow = {};
+  for (const item of digestItems) {
+    if (!byShow[item.show]) byShow[item.show] = [];
+    byShow[item.show].push(item);
+  }
+
+  let text = '📋 *Daily Show Support Digest — ' + today + '*\n\n';
+
+  for (const [show, items] of Object.entries(byShow)) {
+    text += '🎭 *' + show + '*\n';
+    for (const item of items) {
+      const icon = item.action === 'overdue' ? '🚨' : item.action === 'urgent' ? '⚠️' : '📋';
+      const status = item.success ? '✓' : '✗ FAILED';
+      let timing;
+      if (item.daysUntil < 0) timing = Math.abs(item.daysUntil) + 'd overdue';
+      else if (item.daysUntil === 0) timing = 'TODAY';
+      else timing = item.daysUntil + 'd remaining';
+      text += '  ' + icon + ' ' + item.task + ' — ' + item.responsible + ' — ' + timing + ' [' + status + ']\n';
+    }
+    text += '\n';
+  }
+
+  const sent = digestItems.filter(i => i.success).length;
+  text += '_' + sent + '/' + digestItems.length + ' reminders sent successfully._';
+
+  sendSlack(config, text, config.showSupportChannel);
 }
 
 // ─── Date Utilities ───────────────────────────────────────────────────────────

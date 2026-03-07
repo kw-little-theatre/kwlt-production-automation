@@ -105,6 +105,7 @@ function _createShowSetupSheet(ss) {
   const headers = [
     'Show Name',
     'Slack Channel',
+    'Show Email',
     // Required anchor dates
     ANCHOR.AUDITION_START + ' *',
     ANCHOR.BUILD_POSSESSION + ' *',
@@ -140,28 +141,27 @@ function _createShowSetupSheet(ss) {
 
   // Color-code date header groups
   // Required = green
-  sheet.getRange(1, 3, 1, 4).setBackground('#bbf7d0');
+  sheet.getRange(1, 4, 1, 4).setBackground('#bbf7d0');
   // Auto-derived = light blue
-  sheet.getRange(1, 7, 1, 3).setBackground('#bfdbfe');
+  sheet.getRange(1, 8, 1, 3).setBackground('#bfdbfe');
   // Optional = light gray
-  sheet.getRange(1, 10, 1, 3).setBackground('#e5e7eb');
+  sheet.getRange(1, 11, 1, 3).setBackground('#e5e7eb');
 
   // Format date columns
-  for (let i = 3; i <= 12; i++) {
+  for (let i = 4; i <= 13; i++) {
     sheet.setColumnWidth(i, 160);
   }
   sheet.setColumnWidth(1, 200); // Show Name
   sheet.setColumnWidth(2, 180); // Slack Channel
 
-  // Add data validation for date columns
+  // Add data validation for date columns (cols 4-13 now with Show Email in col 3)
   const dateRule = SpreadsheetApp.newDataValidation()
     .requireDate()
     .setAllowInvalid(false)
     .setHelpText('Enter a date (YYYY-MM-DD)')
     .build();
 
-  // Apply to rows 2-20 (plenty of room for shows)
-  for (let col = 3; col <= 12; col++) {
+  for (let col = 4; col <= 13; col++) {
     sheet.getRange(2, col, 19, 1).setDataValidation(dateRule);
     sheet.getRange(2, col, 19, 1).setNumberFormat('yyyy-mm-dd');
   }
