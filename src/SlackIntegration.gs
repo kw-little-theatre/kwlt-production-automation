@@ -61,10 +61,12 @@ function sendSlack(config, text, channel, opts) {
       Logger.log('Slack: Message sent to #' + ch);
       return { ok: true };
     } else {
-      var errMsg = result.error +
-        (result.error === 'channel_not_found' ? ' (is the bot invited to #' + ch + '?)' : '') +
-        (result.error === 'not_in_channel' ? ' (run /invite @YourApp in #' + ch + ')' : '');
-      Logger.log('Slack: Error — ' + errMsg);
+      var errMsg = result.error;
+      if (result.needed) errMsg += ' (needed: ' + result.needed + ')';
+      if (result.provided) errMsg += ' (provided: ' + result.provided + ')';
+      if (result.error === 'channel_not_found') errMsg += ' (is the bot invited to #' + ch + '?)';
+      if (result.error === 'not_in_channel') errMsg += ' (run /invite @YourApp in #' + ch + ')';
+      Logger.log('Slack: Error — ' + errMsg + ' | Full response: ' + response.getContentText());
       return { ok: false, error: errMsg };
     }
   } catch (e) {
