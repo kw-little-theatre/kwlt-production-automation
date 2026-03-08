@@ -117,8 +117,6 @@ function _createShowSetupSheet(ss) {
     ANCHOR.TECH_WEEKEND_START + ' (auto)',
     ANCHOR.TECH_WEEKEND_END + ' (auto)',
     // Optional (tasks skipped if blank)
-    ANCHOR.SEASON_ANNOUNCEMENT + ' (opt)',
-    ANCHOR.ORIENTATION + ' (opt)',
     ANCHOR.READTHROUGH + ' (opt)',
     // Status
     'Timeline Created?',
@@ -134,24 +132,24 @@ function _createShowSetupSheet(ss) {
   sheet.getRange(1, 5, 1, 4).setBackground('#bbf7d0');
   // Auto-derived = light blue (cols 9-11)
   sheet.getRange(1, 9, 1, 3).setBackground('#bfdbfe');
-  // Optional = light gray (cols 12-14)
-  sheet.getRange(1, 12, 1, 3).setBackground('#e5e7eb');
+  // Optional = light gray (col 12)
+  sheet.getRange(1, 12, 1, 1).setBackground('#e5e7eb');
 
-  // Format date columns (5-14)
-  for (let i = 5; i <= 14; i++) {
+  // Format date columns (5-12)
+  for (let i = 5; i <= 12; i++) {
     sheet.setColumnWidth(i, 160);
   }
   sheet.setColumnWidth(1, 200); // Show Name
   sheet.setColumnWidth(2, 180); // Slack Channel
 
-  // Add data validation for date columns (cols 5-14)
+  // Add data validation for date columns (cols 5-12)
   const dateRule = SpreadsheetApp.newDataValidation()
     .requireDate()
     .setAllowInvalid(false)
     .setHelpText('Enter a date (YYYY-MM-DD)')
     .build();
 
-  for (let col = 5; col <= 14; col++) {
+  for (let col = 5; col <= 12; col++) {
     sheet.getRange(2, col, 19, 1).setDataValidation(dateRule);
     sheet.getRange(2, col, 19, 1).setNumberFormat('yyyy-mm-dd');
   }
