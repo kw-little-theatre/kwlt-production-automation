@@ -137,18 +137,24 @@ function sendSlackBlockMessageWithButton(config, context, action) {
   const emoji = action === 'overdue' ? '🚨' : action === 'urgent' ? '⚠️' : '📋';
   const color = action === 'overdue' ? '#dc2626' : action === 'urgent' ? '#f59e0b' : '#2563eb';
 
+  const headerText = action === 'overdue'
+    ? emoji + ' Overdue: ' + context.task
+    : action === 'urgent'
+    ? emoji + ' Due tomorrow: ' + context.task
+    : emoji + ' Upcoming: ' + context.task;
+
   const blocks = [
     {
       type: 'header',
       text: {
         type: 'plain_text',
-        text: emoji + ' ' + context.showName + ' — ' + (action === 'overdue' ? 'Overdue Task' : 'Upcoming Deadline'),
+        text: headerText,
       },
     },
     {
       type: 'section',
       fields: [
-        { type: 'mrkdwn', text: '*Task:*\n' + context.task },
+        { type: 'mrkdwn', text: '*Show:*\n' + context.showName },
         { type: 'mrkdwn', text: '*Responsible:*\n' + context.responsible },
         { type: 'mrkdwn', text: '*Deadline:*\n' + context.deadline },
         { type: 'mrkdwn', text: '*Status:*\n' + (action === 'overdue'
@@ -198,9 +204,9 @@ function sendSlackBlockMessage(config, context, action) {
     attachments: [{
       color: color,
       blocks: [
-        { type: 'header', text: { type: 'plain_text', text: emoji + ' ' + context.showName } },
+        { type: 'header', text: { type: 'plain_text', text: emoji + ' ' + (action === 'overdue' ? 'Overdue: ' : 'Upcoming: ') + context.task } },
         { type: 'section', fields: [
-          { type: 'mrkdwn', text: '*Task:*\n' + context.task },
+          { type: 'mrkdwn', text: '*Show:*\n' + context.showName },
           { type: 'mrkdwn', text: '*Responsible:*\n' + context.responsible },
           { type: 'mrkdwn', text: '*Deadline:*\n' + context.deadline },
           { type: 'mrkdwn', text: '*Status:*\n' + (action === 'overdue' ? context.daysOverdue + ' days overdue' : context.daysUntil + ' days remaining') },

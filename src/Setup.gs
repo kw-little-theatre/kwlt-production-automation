@@ -228,13 +228,13 @@ function _createMessageTemplatesSheet(ss) {
     [
       'Advance Reminder',
       'slack',
-      '📋 Upcoming deadline for {{SHOW_NAME}}',
-      '👋 Hey {{RESPONSIBLE_PARTY}},\n\nFriendly reminder: *{{TASK}}* is due in {{DAYS_UNTIL}} days ({{DEADLINE}}).\n\n📌 Timing: {{GENERAL_RULE}}\n📖 Handbook: {{HANDBOOK_URL}}\n\n✅ Done? Click here to mark it complete: {{MARK_DONE_URL}}\n\nQuestions? Post in {{SLACK_CHANNEL}} or reach out to your Show Support rep.',
+      '📋 Upcoming: {{TASK}}',
+      '👋 Hey {{RESPONSIBLE_PARTY}},\n\nFriendly reminder for *{{SHOW_NAME}}*: *{{TASK}}* is due in {{DAYS_UNTIL}} days ({{DEADLINE}}).\n\n📌 Timing: {{GENERAL_RULE}}\n📖 Handbook: {{HANDBOOK_URL}}\n\n✅ Done? Click here to mark it complete: {{MARK_DONE_URL}}\n\nQuestions? Post in {{SLACK_CHANNEL}} or reach out to your Show Support rep.',
     ],
     [
       'Urgent Reminder',
       'slack',
-      '🚨 Tomorrow\'s deadline for {{SHOW_NAME}}',
+      '🚨 Due tomorrow: {{TASK}}',
       '🚨 *Urgent — {{SHOW_NAME}}*\n\n{{RESPONSIBLE_PARTY}}, *{{TASK}}* is due *tomorrow* ({{DEADLINE}}).\n\n📌 {{GENERAL_RULE}}\n\n✅ Done? Click here to mark it complete: {{MARK_DONE_URL}}\n\nPlease complete this or let your Show Support rep know if you need help.',
     ],
     [
@@ -246,7 +246,7 @@ function _createMessageTemplatesSheet(ss) {
     [
       'Advance Reminder (Email)',
       'email',
-      '[KWLT] Upcoming deadline: {{TASK}} -- {{SHOW_NAME}}',
+      '[KWLT] Upcoming: {{TASK}} -- {{SHOW_NAME}}',
       'Hi {{RESPONSIBLE_PARTY}},\n\nThis is a reminder that the following task for {{SHOW_NAME}} is due in {{DAYS_UNTIL}} days:\n\n- Task: {{TASK}}\n- Deadline: {{DEADLINE}}\n- Timing: {{GENERAL_RULE}}\n\nHandbook: {{HANDBOOK_URL}}\n\nDone? Mark this task complete:\n{{MARK_DONE_URL}}\n\nIf you have questions, please reach out to your Show Support Committee representative.\n\n-- KWLT Show Support Automation',
     ],
     [
