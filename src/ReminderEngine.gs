@@ -63,6 +63,7 @@ function runDailyReminders() {
           daysOverdue: daysUntil < 0 ? Math.abs(daysUntil) : 0,
           slackChannel: show.slackChannel,
           showEmail: show.showEmail,
+          resourcesUrl: show.resourcesUrl,
           handbookUrl: config.handbookUrl,
           notifyVia: notifyVia,
           markDoneUrl: buildMarkDoneUrl(config.webAppUrl, show.name, taskData[COL.TASK]),
@@ -179,14 +180,24 @@ function _executeAction(action, context, config) {
     }
   }
 
-  // Email — send as HTML when a Mark Done URL is available
+  // Email -- send as HTML when a Mark Done URL is available
   if ((context.notifyVia === 'email' || context.notifyVia === 'both') && config.sendEmail) {
-    const emailTemplate = _getTemplate(config.ss, _emailTemplateName(action));
-    if (emailTemplate) {
-      const recipientEmail = _resolveRecipientEmail(context, config);
-      if (recipientEmail) {
-        const subject = _renderTemplate(emailTemplate.subject, context);
-        const body = _renderTemplate(emailTemplate.body, context);
+    const recipientEmail = _resolveRecipientEmail(context, config);
+    if (recipientEmail) {
+      // Check if this task has a custom email template in TaskTemplateData
+      const customEmail = _getCustomEmailForTask(context.task);
+      let subject, body;
+      if (customEmail) {
+        subject = _renderTemplate(customEmail.emailSubject, context);
+        body = _renderTemplate(customEmail.emailBody, context);
+      } else {
+        const emailTemplate = _getTemplate(config.ss, _emailTemplateName(action));
+        if (emailTemplate) {
+          subject = _renderTemplate(emailTemplate.subject, context);
+          body = _renderTemplate(emailTemplate.body, context);
+        }
+      }
+      if (subject && body) {
         const ok = context.markDoneUrl
           ? sendHtmlEmailReminder(recipientEmail, subject, body, context.markDoneUrl)
           : sendEmailReminder(recipientEmail, subject, body);
@@ -252,6 +263,20 @@ function _getTemplate(ss, templateName) {
 }
 
 /**
+ * Looks up a task in the TaskTemplateData to see if it has a custom
+ * emailSubject/emailBody. Returns { emailSubject, emailBody } or null.
+ */
+function _getCustomEmailForTask(taskName) {
+  const tasks = getTaskTemplateData();
+  for (const t of tasks) {
+    if (t.emailBody && (t.task === taskName || taskName.indexOf(t.task) !== -1)) {
+      return { emailSubject: t.emailSubject, emailBody: t.emailBody };
+    }
+  }
+  return null;
+}
+
+/**
  * Replaces {{PLACEHOLDER}} tokens in a template string with context values.
  */
 function _renderTemplate(template, context) {
@@ -267,6 +292,7 @@ function _renderTemplate(template, context) {
     .replace(/\{\{GENERAL_RULE\}\}/g, context.generalRule || '')
     .replace(/\{\{SLACK_CHANNEL\}\}/g, context.slackChannel || '')
     .replace(/\{\{HANDBOOK_URL\}\}/g, context.handbookUrl || '')
+    .replace(/\{\{RESOURCES_URL\}\}/g, context.resourcesUrl || '')
     .replace(/\{\{MARK_DONE_URL\}\}/g, context.markDoneUrl || '')
     .replace(/\{\{DATE\}\}/g, Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd'));
 }
@@ -384,6 +410,7 @@ function _getActiveShows(ss) {
   const nameCol = 0;
   const slackCol = headers.indexOf('Slack Channel');
   const emailCol = headers.indexOf('Show Email');
+  const resourcesCol = headers.indexOf('Resources Folder URL');
   const activeCol = headers.indexOf('Active?');
 
   const shows = [];
@@ -394,6 +421,7 @@ function _getActiveShows(ss) {
         name: data[i][nameCol],
         slackChannel: slackCol !== -1 ? data[i][slackCol] : '',
         showEmail: emailCol !== -1 ? data[i][emailCol] : '',
+        resourcesUrl: resourcesCol !== -1 ? data[i][resourcesCol] : '',
       });
     }
   }

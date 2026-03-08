@@ -106,6 +106,7 @@ function _createShowSetupSheet(ss) {
     'Show Name',
     'Slack Channel',
     'Show Email',
+    'Resources Folder URL',
     // Required anchor dates
     ANCHOR.AUDITION_START + ' *',
     ANCHOR.BUILD_POSSESSION + ' *',

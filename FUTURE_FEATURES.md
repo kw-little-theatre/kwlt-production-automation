@@ -40,6 +40,21 @@ Currently there's one global webhook. Support per-show webhooks so reminders pos
 
 ---
 
+### Board/committee-facing reminders
+Some reminders are for the Show Support Committee or Board, not the production team. Examples: strike walkthrough volunteer coordination, debrief scheduling. These would need a separate routing path (to the show support channel or specific board members) rather than the show's Slack channel.
+
+---
+
+### Form-based date collection
+For dates that aren't known at season setup (e.g., readthrough date, first production meeting date), provide a form or Slack prompt that the production team can fill in, which automatically updates the Show Setup sheet and activates the dependent tasks.
+
+---
+
+### Form-based debrief scheduling
+After closing, automatically send a scheduling form (e.g., Doodle or Google Forms link) to the production team for the post-show debrief meeting, rather than requiring someone to do it manually.
+
+---
+
 ### Trim the task template
 The current task template has ~50 tasks (plus recurring expansions), which is too many. Review with Show Support to identify which tasks genuinely need automated reminders vs. which are just reference items that belong in the handbook. The template should focus on tasks that are:
 - Frequently forgotten
