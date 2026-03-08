@@ -68,7 +68,7 @@ function sendHtmlEmailReminder(to, subject, plainBody, markDoneUrl) {
       'background-color: #059669; color: #ffffff; ' +
       'text-decoration: none; border-radius: 8px; ' +
       'font-weight: 600; font-size: 16px;">' +
-      '✅ Mark This Task Done</a>' +
+      '&#10004; Mark This Task Done</a>' +
       '</div>' +
       '<p style="color: #6b7280; font-size: 13px; text-align: center;">' +
       'Or copy this link: ' + markDoneUrl + '</p>'
