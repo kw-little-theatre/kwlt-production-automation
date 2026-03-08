@@ -473,7 +473,7 @@ function _sendDailyDigestSlack(digestItems, config) {
     text += '🎭 *' + show + '*\n';
     for (const item of items) {
       const icon = item.action === 'overdue' ? '🚨' : item.action === 'urgent' ? '⚠️' : '📋';
-      const status = item.success ? '✓' : '✗ FAILED';
+      const status = item.success ? 'sent' : 'FAILED';
       let timing;
       if (item.daysUntil < 0) timing = Math.abs(item.daysUntil) + 'd overdue';
       else if (item.daysUntil === 0) timing = 'TODAY';
