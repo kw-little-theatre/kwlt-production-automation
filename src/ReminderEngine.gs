@@ -167,8 +167,8 @@ function _statusAfterAction(action) {
 function _executeAction(action, context, config) {
   let anySuccess = false;
 
-  // Slack
-  if ((context.notifyVia === 'slack' || context.notifyVia === 'both') && config.sendSlack) {
+  // Slack reminder to show channel (skip for overdue — escalation handles it)
+  if (action !== 'overdue' && (context.notifyVia === 'slack' || context.notifyVia === 'both') && config.sendSlack) {
     // Try rich block message with "Mark Done" button first, fall back to plain text
     if (config.webAppUrl) {
       const result = sendSlackBlockMessageWithButton(config, context, action);
@@ -187,8 +187,8 @@ function _executeAction(action, context, config) {
     }
   }
 
-  // Email -- send as HTML when a Mark Done URL is available
-  if ((context.notifyVia === 'email' || context.notifyVia === 'both') && config.sendEmail) {
+  // Email to show (skip for overdue — escalation goes to Show Support Slack only)
+  if (action !== 'overdue' && (context.notifyVia === 'email' || context.notifyVia === 'both') && config.sendEmail) {
     const recipientEmail = _resolveRecipientEmail(context, config);
     if (recipientEmail) {
       // Check if this task has a custom email template in TaskTemplateData
