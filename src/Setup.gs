@@ -247,13 +247,13 @@ function _createMessageTemplatesSheet(ss) {
       'Advance Reminder (Email)',
       'email',
       '[KWLT] Upcoming: {{TASK}} -- {{SHOW_NAME}}',
-      'Hi {{RESPONSIBLE_PARTY}},\n\nThis is a reminder that the following task for {{SHOW_NAME}} is due in {{DAYS_UNTIL}} days:\n\n- Task: {{TASK}}\n- Deadline: {{DEADLINE}}\n- Timing: {{GENERAL_RULE}}\n\nHandbook: {{HANDBOOK_URL}}\n\nDone? Mark this task complete:\n{{MARK_DONE_URL}}\n\nIf you have questions, please reach out to your Show Support Committee representative.\n\n-- KWLT Show Support Automation',
+      'Hello,\n\nThis is a reminder that the following task for {{SHOW_NAME}} is due in {{DAYS_UNTIL}} days:\n\n- Task: {{TASK}}\n- Deadline: {{DEADLINE}}\n- Timing: {{GENERAL_RULE}}\n\nHandbook: {{HANDBOOK_URL}}\n\nDone? Mark this task complete:\n{{MARK_DONE_URL}}\n\nIf you have questions, please reach out to your Show Support Committee representative.\n\n-- KWLT Show Support Automation',
     ],
     [
       'Urgent Reminder (Email)',
       'email',
       '[KWLT] Due TOMORROW: {{TASK}} -- {{SHOW_NAME}}',
-      'Hi {{RESPONSIBLE_PARTY}},\n\nThis is an urgent reminder that the following task for {{SHOW_NAME}} is due TOMORROW:\n\n- Task: {{TASK}}\n- Deadline: {{DEADLINE}}\n- Timing: {{GENERAL_RULE}}\n\nDone? Mark this task complete:\n{{MARK_DONE_URL}}\n\nPlease complete this task or reach out to your Show Support Committee representative if you need assistance.\n\n-- KWLT Show Support Automation',
+      'Hello,\n\nThis is an urgent reminder that the following task for {{SHOW_NAME}} is due TOMORROW:\n\n- Task: {{TASK}}\n- Deadline: {{DEADLINE}}\n- Timing: {{GENERAL_RULE}}\n\nDone? Mark this task complete:\n{{MARK_DONE_URL}}\n\nPlease complete this task or reach out to your Show Support Committee representative if you need assistance.\n\n-- KWLT Show Support Automation',
     ],
     [
       'Daily Digest',
