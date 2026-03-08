@@ -32,7 +32,7 @@ function sendEmailReminder(to, subject, body) {
 
   try {
     GmailApp.sendEmail(to, _stripEmoji(subject), _stripEmoji(body), {
-      name: 'KWLT Show Support Automation',
+      name: 'KWLT Show Support',
       noReply: false,  // Allow replies
     });
     Logger.log('Email: Sent to ' + to + ' — ' + subject);
@@ -84,12 +84,12 @@ function sendHtmlEmailReminder(to, subject, plainBody, markDoneUrl) {
       'Or copy this link: ' + markDoneUrl + '</p>'
     ) : '') +
     '<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">' +
-    '<p style="color: #9ca3af; font-size: 12px;">KWLT Show Support Automation</p>' +
+    '<p style="color: #9ca3af; font-size: 12px;">KWLT Show Support</p>' +
     '</body></html>';
 
   try {
     GmailApp.sendEmail(to, _stripEmoji(subject), _stripEmoji(plainBody), {
-      name: 'KWLT Show Support Automation',
+      name: 'KWLT Show Support',
       htmlBody: htmlBody,
       noReply: false,
     });
@@ -150,7 +150,7 @@ function _sendDailyDigest(digestItems, config) {
 
   body += '─'.repeat(50) + '\n';
   body += 'Total reminders sent today: ' + digestItems.filter(i => i.success).length + '/' + digestItems.length + '\n';
-  body += '\nThis is an automated message from KWLT Show Support Automation.';
+  body += '\nThis is an automated message from KWLT Show Support.';
 
   // Use the Daily Digest template subject if available
   const digestTemplate = _getTemplate(config.ss, 'Daily Digest');
@@ -183,7 +183,7 @@ function testEmailConnection() {
     'This is a test email from the KWLT Production Automation system.\n\n' +
     'If you received this, your email integration is working!\n\n' +
     'Sent at: ' + new Date().toLocaleString() + '\n\n' +
-    '— KWLT Show Support Automation'
+    '— KWLT Show Support'
   );
 
   SpreadsheetApp.getUi().alert(
