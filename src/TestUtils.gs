@@ -39,50 +39,55 @@ function testAllMessageTypes() {
   const results = [];
 
   const slackReady = (config.slackBotToken || config.slackWebhookUrl) && config.sendSlack;
+  const slackChannel = context.slackChannel;
+
+  if (slackReady && !slackChannel) {
+    results.push('Slack: ⏭ skipped — no Slack Default Channel set in Config sheet (required for bot token mode)');
+  }
 
   // ── Test 1: Advance Reminder (Slack) ────────────────────────────────────
-  if (slackReady) {
+  if (slackReady && slackChannel) {
     if (config.webAppUrl) {
-      const ok = sendSlackBlockMessageWithButton(config, context, 'advance');
-      results.push('Slack advance (with button): ' + (ok ? '✅ sent' : '❌ failed'));
+      const result = sendSlackBlockMessageWithButton(config, context, 'advance');
+      results.push('Slack advance (with button): ' + (result && result.ok ? '✅ sent' : '❌ failed — ' + (result && result.error || 'unknown')));
     } else {
       const tpl = _getTemplate(ss, 'Advance Reminder');
       if (tpl) {
         const msg = _renderTemplate(tpl, context);
-        const ok = sendSlack(config, msg, context.slackChannel);
-        results.push('Slack advance (plain): ' + (ok ? '✅ sent' : '❌ failed'));
+        const result = sendSlack(config, msg, slackChannel);
+        results.push('Slack advance (plain): ' + (result && result.ok ? '✅ sent' : '❌ failed — ' + (result && result.error || 'unknown')));
       }
     }
-  } else {
+  } else if (!slackReady) {
     results.push('Slack advance: ⏭ skipped (no token/webhook or Slack disabled)');
   }
 
   // ── Test 2: Urgent Reminder (Slack) ─────────────────────────────────────
-  if (slackReady) {
+  if (slackReady && slackChannel) {
     const urgentContext = Object.assign({}, context, { daysUntil: 1 });
     if (config.webAppUrl) {
-      const ok = sendSlackBlockMessageWithButton(config, urgentContext, 'urgent');
-      results.push('Slack urgent (with button): ' + (ok ? '✅ sent' : '❌ failed'));
+      const result = sendSlackBlockMessageWithButton(config, urgentContext, 'urgent');
+      results.push('Slack urgent (with button): ' + (result && result.ok ? '✅ sent' : '❌ failed — ' + (result && result.error || 'unknown')));
     } else {
       const tpl = _getTemplate(ss, 'Urgent Reminder');
       if (tpl) {
         const msg = _renderTemplate(tpl, urgentContext);
-        const ok = sendSlack(config, msg, context.slackChannel);
-        results.push('Slack urgent (plain): ' + (ok ? '✅ sent' : '❌ failed'));
+        const result = sendSlack(config, msg, slackChannel);
+        results.push('Slack urgent (plain): ' + (result && result.ok ? '✅ sent' : '❌ failed — ' + (result && result.error || 'unknown')));
       }
     }
-  } else {
+  } else if (!slackReady) {
     results.push('Slack urgent: ⏭ skipped');
   }
 
   // ── Test 3: Overdue (Slack) ─────────────────────────────────────────────
-  if (slackReady) {
+  if (slackReady && slackChannel) {
     const overdueContext = Object.assign({}, context, { daysUntil: -3, daysOverdue: 3 });
     if (config.webAppUrl) {
-      const ok = sendSlackBlockMessageWithButton(config, overdueContext, 'overdue');
-      results.push('Slack overdue (with button): ' + (ok ? '✅ sent' : '❌ failed'));
+      const result = sendSlackBlockMessageWithButton(config, overdueContext, 'overdue');
+      results.push('Slack overdue (with button): ' + (result && result.ok ? '✅ sent' : '❌ failed — ' + (result && result.error || 'unknown')));
     }
-  } else {
+  } else if (!slackReady) {
     results.push('Slack overdue: ⏭ skipped');
   }
 
