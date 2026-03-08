@@ -238,7 +238,7 @@ function _executeAction(action, context, config) {
       });
     }
 
-    const escResult = sendSlack(config, escText, config.showSupportChannel, {
+    const escResult = sendSlack(config, '', config.showSupportChannel, {
       attachments: [{ color: '#dc2626', blocks: blocks }],
     });
     _logSend(config.ss, context, 'slack (escalation)', action, escResult && escResult.ok, escResult && !escResult.ok ? escResult.error : '');
