@@ -38,11 +38,11 @@ function testAllMessageTypes() {
 
   const results = [];
 
-  const slackReady = (config.slackBotToken || config.slackWebhookUrl) && config.sendSlack;
+  const slackReady = config.slackBotToken && config.sendSlack;
   const slackChannel = context.slackChannel;
 
   if (slackReady && !slackChannel) {
-    results.push('Slack: ⏭ skipped — no Slack Default Channel set in Config sheet (required for bot token mode)');
+    results.push('Slack: ⏭ skipped — no Slack Default Channel set in Config sheet');
   }
 
   // ── Test 1: Advance Reminder (Slack) ────────────────────────────────────
@@ -59,7 +59,7 @@ function testAllMessageTypes() {
       }
     }
   } else if (!slackReady) {
-    results.push('Slack advance: ⏭ skipped (no token/webhook or Slack disabled)');
+    results.push('Slack advance: ⏭ skipped (no bot token or Slack disabled)');
   }
 
   // ── Test 2: Urgent Reminder (Slack) ─────────────────────────────────────

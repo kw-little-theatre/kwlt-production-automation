@@ -18,12 +18,6 @@ const SECRETS = [
     sensitive: true,  // mask when displaying current value
   },
   {
-    key: 'SLACK_WEBHOOK_URL',
-    label: 'Slack Webhook URL (fallback)',
-    description: 'Only needed if not using Bot Token',
-    sensitive: true,
-  },
-  {
     key: 'SHOW_SUPPORT_CHANNEL',
     label: 'Show Support Channel',
     description: 'Slack channel for digest and escalation alerts (e.g., #comm-show-support-private)',
@@ -131,7 +125,6 @@ function migrateSecretsFromSheet() {
 
   const migrationMap = {
     'Slack Bot Token': 'SLACK_BOT_TOKEN',
-    'Slack Webhook URL': 'SLACK_WEBHOOK_URL',
     'Show Support Email': 'SHOW_SUPPORT_EMAIL',
     'Web App URL': 'WEB_APP_URL',
   };

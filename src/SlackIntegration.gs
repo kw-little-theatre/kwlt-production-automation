@@ -1,53 +1,38 @@
 /**
  * KWLT Production Automation — Slack Integration
  *
- * Sends reminder messages to Slack channels. Supports two modes:
- *   1. Bot Token (recommended) — uses chat.postMessage API. Can post to ANY
- *      channel the bot is invited to. Respects the Slack Channel column in
- *      Show Setup. Set "Slack Bot Token" in ⚙️ Config.
- *   2. Incoming Webhook (fallback) — posts to whatever channel the webhook
- *      was created for. Set "Slack Webhook URL" in ⚙️ Config.
+ * Sends reminder messages to Slack channels via the Bot Token API
+ * (chat.postMessage). Can post to ANY channel the bot is invited to.
  *
- * Setup for Bot Token:
+ * Setup:
  *   1. Go to https://api.slack.com/apps → select your KWLT app
  *   2. OAuth & Permissions → add Bot Token Scope: chat:write
  *   3. Install/reinstall the app to your workspace
  *   4. Copy the "Bot User OAuth Token" (starts with xoxb-)
- *   5. Paste into ⚙️ Config → Slack Bot Token
+ *   5. Paste into 🔐 Manage Secrets → Slack Bot Token
  *   6. Invite the bot to each show channel: /invite @YourAppName
  */
 
-// ─── Smart Send (picks bot token or webhook) ─────────────────────────────────
+// ─── Send Function ────────────────────────────────────────────────────────────
 
 /**
- * Sends a message to Slack using the best available method.
- * Bot token takes priority (supports per-channel routing).
- * Falls back to webhook if no bot token is configured.
+ * Sends a message to Slack via the Bot Token API.
  *
- * @param {Object} config — loaded config (needs slackBotToken or slackWebhookUrl)
+ * @param {Object} config — loaded config (needs slackBotToken)
  * @param {string} text — message text (Slack mrkdwn)
  * @param {string} channel — channel name or ID (e.g., "#show-hamlet")
  * @param {Object} [opts] — optional: { attachments }
- * @returns {boolean}
+ * @returns {{ ok: boolean, error: string }}
  */
 function sendSlack(config, text, channel, opts) {
-  if (config.slackBotToken) {
-    return _sendViaBotToken(config.slackBotToken, text, channel, opts);
-  } else if (config.slackWebhookUrl) {
-    return _sendViaWebhook(config.slackWebhookUrl, text, channel, opts);
-  } else {
-    Logger.log('Slack: No bot token or webhook URL configured. Skipping.');
-    return { ok: false, error: 'No Slack bot token or webhook configured' };
+  if (!config.slackBotToken) {
+    Logger.log('Slack: No bot token configured. Skipping.');
+    return { ok: false, error: 'No Slack bot token configured' };
   }
-}
 
-// ─── Bot Token API (chat.postMessage) ─────────────────────────────────────────
-
-function _sendViaBotToken(botToken, text, channel, opts) {
-  if (!botToken || !channel) {
-    var msg = 'Missing ' + (!botToken ? 'token' : 'channel');
-    Logger.log('Slack Bot: ' + msg + '. Skipping.');
-    return { ok: false, error: msg };
+  if (!channel) {
+    Logger.log('Slack: No channel specified. Skipping.');
+    return { ok: false, error: 'No channel specified' };
   }
 
   // Strip # prefix if present — API expects channel name without #
@@ -66,64 +51,24 @@ function _sendViaBotToken(botToken, text, channel, opts) {
     const response = UrlFetchApp.fetch('https://slack.com/api/chat.postMessage', {
       method: 'post',
       contentType: 'application/json; charset=utf-8',
-      headers: { 'Authorization': 'Bearer ' + botToken },
+      headers: { 'Authorization': 'Bearer ' + config.slackBotToken },
       payload: JSON.stringify(payload),
       muteHttpExceptions: true,
     });
 
     const result = JSON.parse(response.getContentText());
     if (result.ok) {
-      Logger.log('Slack Bot: Message sent to #' + ch);
+      Logger.log('Slack: Message sent to #' + ch);
       return { ok: true };
     } else {
       var errMsg = result.error +
         (result.error === 'channel_not_found' ? ' (is the bot invited to #' + ch + '?)' : '') +
         (result.error === 'not_in_channel' ? ' (run /invite @YourApp in #' + ch + ')' : '');
-      Logger.log('Slack Bot: Error — ' + errMsg);
+      Logger.log('Slack: Error — ' + errMsg);
       return { ok: false, error: errMsg };
     }
   } catch (e) {
-    Logger.log('Slack Bot: Exception — ' + e.message);
-    return { ok: false, error: e.message };
-  }
-}
-
-// ─── Webhook Fallback ─────────────────────────────────────────────────────────
-
-function _sendViaWebhook(webhookUrl, text, channel, opts) {
-  if (!webhookUrl) {
-    Logger.log('Slack Webhook: No URL configured. Skipping.');
-    return { ok: false, error: 'No webhook URL configured' };
-  }
-
-  const payload = {
-    text: text,
-    unfurl_links: false,
-    unfurl_media: false,
-  };
-
-  if (channel) payload.channel = channel;
-  if (opts && opts.attachments) payload.attachments = opts.attachments;
-
-  try {
-    const response = UrlFetchApp.fetch(webhookUrl, {
-      method: 'post',
-      contentType: 'application/json',
-      payload: JSON.stringify(payload),
-      muteHttpExceptions: true,
-    });
-
-    const code = response.getResponseCode();
-    if (code === 200) {
-      Logger.log('Slack Webhook: Message sent.');
-      return { ok: true };
-    } else {
-      var errMsg = 'HTTP ' + code + ' — ' + response.getContentText();
-      Logger.log('Slack Webhook: Error ' + errMsg);
-      return { ok: false, error: errMsg };
-    }
-  } catch (e) {
-    Logger.log('Slack Webhook: Exception — ' + e.message);
+    Logger.log('Slack: Exception — ' + e.message);
     return { ok: false, error: e.message };
   }
 }
@@ -191,50 +136,23 @@ function sendSlackBlockMessageWithButton(config, context, action) {
   });
 }
 
-/**
- * Sends a rich block message WITHOUT a button (fallback).
- */
-function sendSlackBlockMessage(config, context, action) {
-  const emoji = action === 'overdue' ? '🚨' : action === 'urgent' ? '⚠️' : '📋';
-  const color = action === 'overdue' ? '#dc2626' : action === 'urgent' ? '#f59e0b' : '#2563eb';
-
-  const text = emoji + ' *' + context.showName + '*\n*' + context.task + '* — due ' + context.deadline + '\nResponsible: ' + context.responsible;
-
-  return sendSlack(config, text, context.slackChannel, {
-    attachments: [{
-      color: color,
-      blocks: [
-        { type: 'header', text: { type: 'plain_text', text: emoji + ' ' + (action === 'overdue' ? 'Overdue: ' : 'Upcoming: ') + context.task } },
-        { type: 'section', fields: [
-          { type: 'mrkdwn', text: '*Show:*\n' + context.showName },
-          { type: 'mrkdwn', text: '*Responsible:*\n' + context.responsible },
-          { type: 'mrkdwn', text: '*Deadline:*\n' + context.deadline },
-          { type: 'mrkdwn', text: '*Status:*\n' + (action === 'overdue' ? context.daysOverdue + ' days overdue' : context.daysUntil + ' days remaining') },
-        ]},
-        { type: 'context', elements: [{ type: 'mrkdwn', text: '📌 ' + context.generalRule }] },
-      ],
-    }],
-  });
-}
-
 // ─── Test Function ────────────────────────────────────────────────────────────
 
 function testSlackConnection() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const config = _loadConfig(ss);
 
-  if (!config.slackBotToken && !config.slackWebhookUrl) {
+  if (!config.slackBotToken) {
     SpreadsheetApp.getUi().alert(
       'No Slack Configured',
-      'Please set "Slack Bot Token" (recommended) or "Slack Webhook URL" in the ⚙️ Config sheet.',
+      'Please set the Slack Bot Token via 🔐 Manage Secrets.',
       SpreadsheetApp.getUi().ButtonSet.OK
     );
     return;
   }
 
-  const method = config.slackBotToken ? 'Bot Token' : 'Webhook';
   const testChannel = config.slackDefaultChannel || '';
-  const message = '✅ *KWLT Production Automation* — Test message via ' + method + '.\n\n' +
+  const message = '✅ *KWLT Show Support* — Test message.\n\n' +
     'If you see this, your Slack integration is working! 🎭\n' +
     '_Sent at ' + new Date().toLocaleString() + '_';
 
@@ -244,12 +162,10 @@ function testSlackConnection() {
   SpreadsheetApp.getUi().alert(
     ok ? '✅ Success' : '❌ Failed',
     ok
-      ? 'Test message sent via ' + method + '!'
-      : 'Failed to send via ' + method + '. ' +
+      ? 'Test message sent!'
+      : 'Failed to send. ' +
         (result && result.error ? 'Error: ' + result.error : '') + '\n\n' +
-        (config.slackBotToken
-          ? 'Check the bot token and ensure the bot is invited to the channel.'
-          : 'Check the webhook URL in ⚙️ Config.'),
+        'Check the bot token (🔐 Manage Secrets) and ensure the bot is invited to the channel.',
     SpreadsheetApp.getUi().ButtonSet.OK
   );
 }

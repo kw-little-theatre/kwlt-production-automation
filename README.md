@@ -158,7 +158,7 @@ clasp push
 
 ## Security & Privacy
 
-- **Sensitive values** (Slack Bot Token, webhook URL, emails, Web App URL) are stored in **Script Properties**, not the spreadsheet. Only users with script editor access can view or change them.
+- **Sensitive values** (Slack Bot Token, Web App URL, etc.) are stored in **Script Properties**, not the spreadsheet. Only users with script editor access can view or change them.
 - **Manage secrets** via the menu: 🎭 KWLT Automation → 🔐 Manage Secrets
 - **Spreadsheet permissions**: Production teams can have view-only access. Only Show Support needs edit access.
 - The `.clasp.json` file (containing the Apps Script project ID) is gitignored and not committed.
@@ -192,7 +192,7 @@ src/
 ├── Setup.gs              — Initial setup, menu, sheet creation
 ├── ShowTimeline.gs       — Per-show timeline generation & date computation
 ├── ReminderEngine.gs     — Daily reminder logic, template rendering
-├── SlackIntegration.gs   — Slack Bot Token API + webhook fallback
+├── SlackIntegration.gs   — Slack Bot Token API (chat.postMessage)
 ├── EmailIntegration.gs   — Gmail sending (HTML + plain text)
 ├── SeasonOverview.gs     — Cross-show dashboard, trigger management
 ├── WebApp.gs             — Web app endpoint for "Mark Done"
@@ -207,7 +207,7 @@ src/
 | Menu doesn't appear | Reload the sheet. If still missing, open Apps Script and check for errors. |
 | Reminders stopped sending | Check if the trigger is still installed: 🎭 KWLT Automation → ⏰ Install Daily Trigger |
 | Slack messages going to wrong channel | Ensure the Slack Channel in Show Setup matches the channel name, and the bot is invited (`/invite @AppName`). |
-| Slack messages not arriving | Check 🔐 Manage Secrets → Slack Bot Token is set. Run 🧪 Test All Message Types from the menu. |
+| Slack messages not arriving | Check 🔐 Manage Secrets → Slack Bot Token is set. Ensure the bot is invited to the channel (`/invite @AppName`). Run 🧪 Test All Message Types from the menu. |
 | Emails not sending | The script owner needs Gmail permissions. Re-authorize by running any function from the script editor. |
 | Wrong dates computed | Check the 4 required anchor dates in 🎭 Show Setup. Override specific dates in the show's tab. |
 | "Mark Done" links not working | Check 🔐 Manage Secrets → Web App URL. Redeploy the web app if needed (Deploy → Manage deployments → update to latest version). |
