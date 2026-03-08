@@ -322,52 +322,10 @@ function _renderTemplate(template, context) {
 // ─── Recipient Resolution ─────────────────────────────────────────────────────
 
 /**
- * Resolves the email address for a task's responsible party by looking up
- * the show's contact info in the Show Setup sheet.
+ * Resolves the email address for a task. All reminders go to the show's
+ * shared email address.
  */
 function _resolveRecipientEmail(context, config) {
-  // All reminder emails go to the show's shared email address
-  if (context.showEmail) return context.showEmail;
-
-  // Fallback: look up individual team member emails
-  const setupSheet = config.ss.getSheetByName(SHEET_SHOW_SETUP);
-  if (!setupSheet) return null;
-
-  const data = setupSheet.getDataRange().getValues();
-  const headers = data[0];
-
-  let showRow = null;
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === context.showName) {
-      showRow = data[i];
-      break;
-    }
-  }
-  if (!showRow) return context.showEmail || null;
-
-  // Map responsible party to email column
-  const responsible = (context.responsible || '').toLowerCase();
-  const emailMap = {
-    'director': 'Director Email',
-    'stage manager': 'Stage Manager Email',
-    'stage manager and director': 'Stage Manager Email',
-    'stage manager & technical director': 'Stage Manager Email',
-    'technical director': 'Technical Director Email',
-    'producer': 'Producer Email',
-    'music director': 'Music Director Email',
-    'production team': 'Stage Manager Email',  // SM is the hub
-    'director and stage manager': 'Director Email',
-  };
-
-  const emailCol = emailMap[responsible];
-  if (emailCol) {
-    const colIdx = headers.indexOf(emailCol);
-    if (colIdx !== -1 && showRow[colIdx]) {
-      return showRow[colIdx];
-    }
-  }
-
-  // Fallback to show email
   return context.showEmail || null;
 }
 

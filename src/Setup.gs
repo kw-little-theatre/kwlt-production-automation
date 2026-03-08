@@ -120,17 +120,6 @@ function _createShowSetupSheet(ss) {
     ANCHOR.SEASON_ANNOUNCEMENT + ' (opt)',
     ANCHOR.ORIENTATION + ' (opt)',
     ANCHOR.READTHROUGH + ' (opt)',
-    // Production team contacts
-    'Director Name',
-    'Director Email',
-    'Stage Manager Name',
-    'Stage Manager Email',
-    'Technical Director Name',
-    'Technical Director Email',
-    'Producer Name',
-    'Producer Email',
-    'Music Director Name',
-    'Music Director Email',
     // Status
     'Timeline Created?',
     'Active?',
