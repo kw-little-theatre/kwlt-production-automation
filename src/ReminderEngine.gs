@@ -71,11 +71,13 @@ function runDailyReminders() {
 
         const success = _executeAction(action, context, config);
 
+        // Update status in the sheet if any notification was sent
         if (success) {
-          // Update status in the sheet
           const newStatus = _statusAfterAction(action);
           sheet.getRange(row + 1, COL.STATUS + 1).setValue(newStatus);
           sheet.getRange(row + 1, COL.LAST_NOTIFIED + 1).setValue(new Date());
+        } else {
+          Logger.log('Warning: No notifications sent for "' + taskData[COL.TASK] + '" (' + show.name + '). notifyVia=' + notifyVia + ', sendSlack=' + config.sendSlack + ', sendEmail=' + config.sendEmail + ', showEmail=' + (show.showEmail || 'none') + ', slackChannel=' + (show.slackChannel || 'none'));
         }
 
         // Add to digest
