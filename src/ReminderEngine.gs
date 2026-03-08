@@ -73,9 +73,14 @@ function runDailyReminders() {
 
         // Update status in the sheet if any notification was sent
         if (success) {
-          const newStatus = _statusAfterAction(action);
+          // Check if this task should auto-complete after the first send
+          const isAutoComplete = _isAutoCompleteTask(context.task);
+          const newStatus = isAutoComplete ? STATUS.DONE : _statusAfterAction(action);
           sheet.getRange(row + 1, COL.STATUS + 1).setValue(newStatus);
           sheet.getRange(row + 1, COL.LAST_NOTIFIED + 1).setValue(new Date());
+          if (isAutoComplete) {
+            sheet.getRange(row + 1, COL.NOTES + 1).setValue('Auto-completed after sending');
+          }
         } else {
           Logger.log('Warning: No notifications sent for "' + taskData[COL.TASK] + '" (' + show.name + '). notifyVia=' + notifyVia + ', sendSlack=' + config.sendSlack + ', sendEmail=' + config.sendEmail + ', showEmail=' + (show.showEmail || 'none') + ', slackChannel=' + (show.slackChannel || 'none'));
         }
@@ -262,6 +267,21 @@ function _getTemplate(ss, templateName) {
     }
   }
   return null;
+}
+
+/**
+ * Checks if a task has the autoComplete flag set.
+ * Auto-complete tasks are marked Done after the first notification is sent
+ * (used for informational emails that don't require follow-up).
+ */
+function _isAutoCompleteTask(taskName) {
+  const tasks = getTaskTemplateData();
+  for (const t of tasks) {
+    if (t.autoComplete && (t.task === taskName || taskName.indexOf(t.task) !== -1)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
