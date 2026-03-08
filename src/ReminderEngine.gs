@@ -85,16 +85,18 @@ function runDailyReminders() {
           Logger.log('Warning: No notifications sent for "' + taskData[COL.TASK] + '" (' + show.name + '). notifyVia=' + notifyVia + ', sendSlack=' + config.sendSlack + ', sendEmail=' + config.sendEmail + ', showEmail=' + (show.showEmail || 'none') + ', slackChannel=' + (show.slackChannel || 'none'));
         }
 
-        // Add to digest
-        digestItems.push({
-          show: show.name,
-          task: context.task,
-          responsible: context.responsible,
-          deadline: context.deadline,
-          action: action,
-          daysUntil: daysUntil,
-          success: success,
-        });
+        // Add to reminder summary (only for messages sent to the show, not escalations)
+        if (action !== 'overdue') {
+          digestItems.push({
+            show: show.name,
+            task: context.task,
+            responsible: context.responsible,
+            deadline: context.deadline,
+            action: action,
+            daysUntil: daysUntil,
+            success: success,
+          });
+        }
       }
     }
   }
