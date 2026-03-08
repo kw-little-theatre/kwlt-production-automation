@@ -116,7 +116,7 @@ function getTaskTemplateData() {
       phase: 'Auditions',
     },
     {
-      task: '⚠️ Send acceptance and rejection notifications to ALL auditionees (required within 5 days per policy)',
+      task: 'IMPORTANT: Send acceptance and rejection notifications to ALL auditionees (required within 5 days per policy)',
       responsible: 'Director',
       generalRule: '1 day after last day of auditions',
       anchorRef: ANCHOR.AUDITION_END,

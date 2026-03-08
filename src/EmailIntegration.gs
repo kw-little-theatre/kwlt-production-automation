@@ -7,6 +7,16 @@
  */
 
 /**
+ * Strips emoji and other non-ASCII symbol characters from a string.
+ * Keeps standard punctuation, accented letters, and common symbols.
+ */
+ function _stripEmoji(str) {
+  if (!str) return str;
+  // Remove emoji and misc symbol blocks, keep basic latin + extended latin + common punctuation
+  return str.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{200D}\u{20E3}\u{E0020}-\u{E007F}]/gu, '').replace(/  +/g, ' ').trim();
+}
+
+/**
  * Sends a plain-text email reminder.
  *
  * @param {string} to — recipient email address
@@ -21,7 +31,7 @@ function sendEmailReminder(to, subject, body) {
   }
 
   try {
-    GmailApp.sendEmail(to, subject, body, {
+    GmailApp.sendEmail(to, _stripEmoji(subject), _stripEmoji(body), {
       name: 'KWLT Show Support Automation',
       noReply: false,  // Allow replies
     });
@@ -78,7 +88,7 @@ function sendHtmlEmailReminder(to, subject, plainBody, markDoneUrl) {
     '</body></html>';
 
   try {
-    GmailApp.sendEmail(to, subject, plainBody, {
+    GmailApp.sendEmail(to, _stripEmoji(subject), _stripEmoji(plainBody), {
       name: 'KWLT Show Support Automation',
       htmlBody: htmlBody,
       noReply: false,
