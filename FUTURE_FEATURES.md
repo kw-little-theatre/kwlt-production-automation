@@ -28,11 +28,6 @@ Monitor Slack reactions (e.g., ✅) on reminder messages and auto-mark tasks as 
 
 ---
 
-### Per-show Slack webhooks
-Currently there's one global webhook. Support per-show webhooks so reminders post to each show's dedicated channel (e.g., `#show-hamlet`). The Slack Channel column in Show Setup is already there but not yet used for routing.
-
----
-
 ### Show support dashboard improvements
 - Color-code the Season Overview by show
 - Add a "days since last update" column
@@ -72,5 +67,8 @@ Tasks that are "nice to know" but self-evident to experienced production teams s
 ---
 
 ## Completed
+
+### Per-show Slack channel routing
+Implemented via the Bot Token API (`chat.postMessage`). Each show's Slack Channel in Show Setup is used to route reminders to the correct channel. The bot must be invited to each channel (`/invite @AppName`).
 
 _(Move items here as they're implemented)_

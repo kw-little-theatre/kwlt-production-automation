@@ -132,10 +132,10 @@ clasp push
    - **Show Name**: e.g., "Hamlet"
    - **Slack Channel**: e.g., `#show-hamlet`
    - **Show Email**: e.g., `hamlet@kwlt.org`
+   - **Resources Folder URL**: link to the show's Google Drive resources folder
    - **Required dates** (green headers, marked `*`): Audition Start, Build/Possession, Opening Night, Closing Night
    - **Auto-derived dates** (blue headers, marked `(auto)`): leave blank or override — Audition End (+2 days), Tech Weekend Start (opening night -6 days), Tech Weekend End (+1 day)
-   - **Optional dates** (gray headers, marked `(opt)`): Season Announcement, Orientation, Readthrough — related tasks are skipped if left blank
-   - **Production Team**: names and emails (kept as reference)
+   - **Optional dates** (gray headers, marked `(opt)`): Readthrough — related tasks are skipped if left blank
 3. Click **🎭 KWLT Automation → 📋 Generate Show Task Tabs**
    - Confirms the list of shows, then creates all timeline tabs at once
 4. **Review the dates** in each 🎬 tab — adjust any that need tweaking
@@ -179,7 +179,7 @@ Edit the **✉️ Message Templates** sheet. Available placeholders:
 ```
 {{SHOW_NAME}}  {{TASK}}  {{RESPONSIBLE_PARTY}}  {{DEADLINE}}
 {{DAYS_UNTIL}}  {{DAYS_OVERDUE}}  {{GENERAL_RULE}}
-{{SLACK_CHANNEL}}  {{HANDBOOK_URL}}  {{MARK_DONE_URL}}  {{DATE}}
+{{SLACK_CHANNEL}}  {{HANDBOOK_URL}}  {{RESOURCES_URL}}  {{MARK_DONE_URL}}  {{DATE}}
 ```
 
 ## File Structure

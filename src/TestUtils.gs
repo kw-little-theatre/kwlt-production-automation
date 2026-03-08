@@ -122,19 +122,16 @@ function testAllMessageTypes() {
     results.push('Email urgent: ⏭ skipped');
   }
 
-  // ── Test 6: Overdue Escalation (Email) ──────────────────────────────────
-  const escEmail = config.escalationEmail || config.showSupportEmail;
-  if (escEmail && config.sendEmail) {
+  // ── Test 6: Overdue Escalation (Slack to Show Support channel) ─────────
+  if (slackReady && config.showSupportChannel) {
     const overdueContext = Object.assign({}, context, { daysUntil: -3, daysOverdue: 3 });
-    const tpl = _getTemplate(ss, 'Overdue Escalation');
-    if (tpl) {
-      const subject = _renderTemplate(tpl.subject, overdueContext);
-      const body = _renderTemplate(tpl.body, overdueContext);
-      const ok = sendEmailReminder(escEmail, subject, body);
-      results.push('Email overdue escalation: ' + (ok ? '✅ sent' : '❌ failed'));
-    }
+    const escText = '🚨 *Overdue Task — ' + overdueContext.showName + '*\n\n' +
+      '*' + overdueContext.task + '* is now ' + overdueContext.daysOverdue + ' days overdue (deadline: ' + overdueContext.deadline + ')\n' +
+      'Responsible: ' + overdueContext.responsible;
+    const result = sendSlack(config, escText, config.showSupportChannel);
+    results.push('Slack overdue escalation (to show support): ' + (result && result.ok ? '✅ sent' : '❌ failed — ' + (result && result.error || 'unknown')));
   } else {
-    results.push('Email overdue: ⏭ skipped');
+    results.push('Slack overdue escalation: ⏭ skipped (no show support channel set)');
   }
 
   // ── Show Results ────────────────────────────────────────────────────────

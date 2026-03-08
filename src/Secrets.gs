@@ -36,12 +36,6 @@ const SECRETS = [
     sensitive: false,
   },
   {
-    key: 'ESCALATION_EMAIL',
-    label: 'Escalation Email',
-    description: 'For overdue task alerts (e.g., executive-producer@kwlt.org)',
-    sensitive: false,
-  },
-  {
     key: 'WEB_APP_URL',
     label: 'Web App URL',
     description: 'Deployed web app URL for Mark Done links',
@@ -139,7 +133,6 @@ function migrateSecretsFromSheet() {
     'Slack Bot Token': 'SLACK_BOT_TOKEN',
     'Slack Webhook URL': 'SLACK_WEBHOOK_URL',
     'Show Support Email': 'SHOW_SUPPORT_EMAIL',
-    'Escalation Email': 'ESCALATION_EMAIL',
     'Web App URL': 'WEB_APP_URL',
   };
 

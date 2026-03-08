@@ -52,10 +52,11 @@ function initialSetup() {
     '✅ Setup Complete',
     'All sheets have been created.\n\n' +
     'Next steps:\n' +
-    '1. Fill in your Slack webhook URL in the ⚙️ Config sheet\n' +
-    '2. Add show details in the 🎭 Show Setup sheet\n' +
-    '3. Use the menu: KWLT Automation → Create New Show\n' +
-    '4. Install the daily trigger via the menu',
+    '1. Configure secrets: Menu → 🎭 KWLT Automation → 🔐 Manage Secrets\n' +
+    '2. Configure settings in the ⚙️ Config sheet\n' +
+    '3. Add show details in the 🎭 Show Setup sheet\n' +
+    '4. Generate timelines: Menu → 🎭 KWLT Automation → 📋 Generate Show Task Tabs\n' +
+    '5. Install the daily trigger via the menu',
     ui.ButtonSet.OK
   );
 }
@@ -225,28 +226,16 @@ function _createMessageTemplatesSheet(ss) {
       '🚨 *Urgent — {{SHOW_NAME}}*\n\n{{RESPONSIBLE_PARTY}}, *{{TASK}}* is due *tomorrow* ({{DEADLINE}}).\n\n📌 {{GENERAL_RULE}}\n\n✅ Done? Click here to mark it complete: {{MARK_DONE_URL}}\n\nPlease complete this or let your Show Support rep know if you need help.',
     ],
     [
-      'Overdue Escalation',
-      'email',
-      '[KWLT] Overdue task for {{SHOW_NAME}}',
-      'Hi,\n\nThe following task for {{SHOW_NAME}} is now {{DAYS_OVERDUE}} days overdue:\n\n- Task: {{TASK}}\n- Responsible: {{RESPONSIBLE_PARTY}}\n- Original Deadline: {{DEADLINE}}\n- Timing Rule: {{GENERAL_RULE}}\n\nPlease follow up with the production team.\n\n-- KWLT Show Support Automation',
-    ],
-    [
       'Advance Reminder (Email)',
       'email',
       '[KWLT] Upcoming: {{TASK}} -- {{SHOW_NAME}}',
-      'Hello,\n\nThis is a reminder that the following task for {{SHOW_NAME}} is due in {{DAYS_UNTIL}} days:\n\n- Task: {{TASK}}\n- Deadline: {{DEADLINE}}\n- Timing: {{GENERAL_RULE}}\n\nHandbook: {{HANDBOOK_URL}}\n\nDone? Mark this task complete:\n{{MARK_DONE_URL}}\n\nIf you have questions, please reach out to your Show Support Committee representative.\n\n-- KWLT Show Support Automation',
+      'Hello,\n\nThis is a reminder that the following task for {{SHOW_NAME}} is due in {{DAYS_UNTIL}} days:\n\n- Task: {{TASK}}\n- Deadline: {{DEADLINE}}\n- Timing: {{GENERAL_RULE}}\n\nHandbook: {{HANDBOOK_URL}}\n\nDone? Mark this task complete:\n{{MARK_DONE_URL}}\n\nIf you have questions, please reach out to your Show Support Committee representative.\n\n-- KWLT Show Support',
     ],
     [
       'Urgent Reminder (Email)',
       'email',
       '[KWLT] Due TOMORROW: {{TASK}} -- {{SHOW_NAME}}',
-      'Hello,\n\nThis is an urgent reminder that the following task for {{SHOW_NAME}} is due TOMORROW:\n\n- Task: {{TASK}}\n- Deadline: {{DEADLINE}}\n- Timing: {{GENERAL_RULE}}\n\nDone? Mark this task complete:\n{{MARK_DONE_URL}}\n\nPlease complete this task or reach out to your Show Support Committee representative if you need assistance.\n\n-- KWLT Show Support Automation',
-    ],
-    [
-      'Daily Digest',
-      'email',
-      '[KWLT] Daily Show Support Digest -- {{DATE}}',
-      'Hi Show Support,\n\nHere\'s your daily digest across all active shows:\n\n{{DIGEST_CONTENT}}\n\n-- KWLT Show Support Automation',
+      'Hello,\n\nThis is an urgent reminder that the following task for {{SHOW_NAME}} is due TOMORROW:\n\n- Task: {{TASK}}\n- Deadline: {{DEADLINE}}\n- Timing: {{GENERAL_RULE}}\n\nDone? Mark this task complete:\n{{MARK_DONE_URL}}\n\nPlease complete this task or reach out to your Show Support Committee representative if you need assistance.\n\n-- KWLT Show Support',
     ],
   ];
 
@@ -345,12 +334,13 @@ function _createReadmeSheet(ss) {
     ['checks each active show\'s timeline against today\'s date, and fires reminders.'],
     [''],
     ['SETUP (one-time)'],
-    ['1. Go to ⚙️ Config and enter your Slack Webhook URL and email addresses.'],
-    ['2. Install the daily trigger: Menu → 🎭 KWLT Automation → Install Daily Trigger.'],
+    ['1. Configure secrets: Menu → 🎭 KWLT Automation → 🔐 Manage Secrets (Slack token, Web App URL, etc.)'],
+    ['2. Configure settings in ⚙️ Config (default channel, handbook URL, reminder timing).'],
+    ['3. Install the daily trigger: Menu → 🎭 KWLT Automation → Install Daily Trigger.'],
     [''],
     ['FOR EACH NEW SHOW'],
-    ['1. Go to 🎭 Show Setup and fill in a new row: show name, anchor dates, and production team contacts.'],
-    ['2. Menu → 🎭 KWLT Automation → Create New Show. Select the show name when prompted.'],
+    ['1. Go to 🎭 Show Setup and fill in a new row: show name, Slack channel, show email, resources URL, and dates.'],
+    ['2. Menu → 🎭 KWLT Automation → 📋 Generate Show Task Tabs.'],
     ['3. A new tab (🎬 ShowName) will be created with the full timeline and computed deadlines.'],
     ['4. Review the dates — adjust any that need tweaking in the Computed Date column.'],
     ['5. Set Active? to TRUE in Show Setup when you\'re ready for reminders to go out.'],

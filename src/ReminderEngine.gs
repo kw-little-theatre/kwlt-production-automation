@@ -346,7 +346,7 @@ function _loadConfig(ss) {
     slackWebhookUrl: props.getProperty('SLACK_WEBHOOK_URL') || '',
     slackBotToken: props.getProperty('SLACK_BOT_TOKEN') || '',
     showSupportChannel: props.getProperty('SHOW_SUPPORT_CHANNEL') || '',
-    escalationEmail: props.getProperty('ESCALATION_EMAIL') || '',
+    escalationEmail: '',  // legacy — overdue escalation now goes to Slack
     showSupportEmail: props.getProperty('SHOW_SUPPORT_EMAIL') || '',
     webAppUrl: props.getProperty('WEB_APP_URL') || '',
     slackDefaultChannel: '',

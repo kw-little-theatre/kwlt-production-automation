@@ -179,7 +179,7 @@ function testEmailConnection() {
 
   const ok = sendEmailReminder(
     config.showSupportEmail,
-    '[KWLT] Test — Show Support Automation',
+    '[KWLT] Test -- Show Support',
     'This is a test email from the KWLT Production Automation system.\n\n' +
     'If you received this, your email integration is working!\n\n' +
     'Sent at: ' + new Date().toLocaleString() + '\n\n' +

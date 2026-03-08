@@ -19,8 +19,6 @@ const SHOW_TAB_PREFIX = '🎬 ';
 
 // ─── Anchor Date Labels (must match column headers in Show Setup) ─────────────
 const ANCHOR = {
-  SEASON_ANNOUNCEMENT: 'Season Announcement',
-  ORIENTATION:         'Orientation Date',
   AUDITION_START:      'Audition Start Date',
   AUDITION_END:        'Audition End Date',
   READTHROUGH:         'Readthrough Date',

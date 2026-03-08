@@ -86,7 +86,7 @@ function createShowTimeline(showName) {
   const keyAnchors = [ANCHOR.AUDITION_START, ANCHOR.BUILD_POSSESSION, ANCHOR.OPENING_NIGHT, ANCHOR.CLOSING_NIGHT];
   const missing = keyAnchors.filter(a => !anchors[a]);
   if (missing.length > 0) {
-    throw new Error('Missing required dates: ' + missing.join(', ') + '. Please fill these in on the Show Setup sheet.\n\nNote: Audition End, Tech Weekend Start/End are auto-computed if left blank. Season Announcement, Orientation, and Readthrough are optional.');
+    throw new Error('Missing required dates: ' + missing.join(', ') + '. Please fill these in on the Show Setup sheet.\n\nNote: Audition End and Tech Weekend Start/End are auto-computed if left blank. Readthrough is optional.');
   }
 
   // Create the sheet
