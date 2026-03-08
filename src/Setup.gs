@@ -130,28 +130,28 @@ function _createShowSetupSheet(ss) {
   sheet.setFrozenRows(1);
 
   // Color-code date header groups
-  // Required = green
-  sheet.getRange(1, 4, 1, 4).setBackground('#bbf7d0');
-  // Auto-derived = light blue
-  sheet.getRange(1, 8, 1, 3).setBackground('#bfdbfe');
-  // Optional = light gray
-  sheet.getRange(1, 11, 1, 3).setBackground('#e5e7eb');
+  // Required = green (cols 5-8)
+  sheet.getRange(1, 5, 1, 4).setBackground('#bbf7d0');
+  // Auto-derived = light blue (cols 9-11)
+  sheet.getRange(1, 9, 1, 3).setBackground('#bfdbfe');
+  // Optional = light gray (cols 12-14)
+  sheet.getRange(1, 12, 1, 3).setBackground('#e5e7eb');
 
-  // Format date columns
-  for (let i = 4; i <= 13; i++) {
+  // Format date columns (5-14)
+  for (let i = 5; i <= 14; i++) {
     sheet.setColumnWidth(i, 160);
   }
   sheet.setColumnWidth(1, 200); // Show Name
   sheet.setColumnWidth(2, 180); // Slack Channel
 
-  // Add data validation for date columns (cols 4-13 now with Show Email in col 3)
+  // Add data validation for date columns (cols 5-14)
   const dateRule = SpreadsheetApp.newDataValidation()
     .requireDate()
     .setAllowInvalid(false)
     .setHelpText('Enter a date (YYYY-MM-DD)')
     .build();
 
-  for (let col = 4; col <= 13; col++) {
+  for (let col = 5; col <= 14; col++) {
     sheet.getRange(2, col, 19, 1).setDataValidation(dateRule);
     sheet.getRange(2, col, 19, 1).setNumberFormat('yyyy-mm-dd');
   }
