@@ -40,6 +40,11 @@ Currently there's one global webhook. Support per-show webhooks so reminders pos
 
 ---
 
+### Repeated overdue reminders
+Currently, overdue escalation fires once (2 days past deadline) then stops. Consider adding periodic follow-up reminders (e.g., every 3 days) for tasks that remain overdue, with escalating urgency. Wait to see how real-world usage goes before implementing.
+
+---
+
 ### Board/committee-facing reminders
 Some reminders are for the Show Support Committee or Board, not the production team. Examples: strike walkthrough volunteer coordination, debrief scheduling. These would need a separate routing path (to the show support channel or specific board members) rather than the show's Slack channel.
 
