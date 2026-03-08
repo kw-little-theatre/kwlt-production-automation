@@ -219,9 +219,28 @@ function _executeAction(action, context, config) {
     const escText = '🚨 *Overdue Task — ' + context.showName + '*\n\n' +
       '*' + context.task + '* is now ' + context.daysOverdue + ' days overdue (deadline: ' + context.deadline + ')\n' +
       'Responsible: ' + context.responsible + '\n' +
-      'Timing: ' + context.generalRule +
-      (context.markDoneUrl ? '\n\n<' + context.markDoneUrl + '|Mark Done>' : '');
-    const escResult = sendSlack(config, escText, config.showSupportChannel);
+      'Timing: ' + context.generalRule;
+
+    // Use block kit with a Mark Done button (same as show reminders)
+    const blocks = [
+      { type: 'section', text: { type: 'mrkdwn', text: escText } },
+    ];
+    if (context.markDoneUrl) {
+      blocks.push({
+        type: 'actions',
+        elements: [{
+          type: 'button',
+          text: { type: 'plain_text', text: '✅ Mark Done', emoji: true },
+          style: 'primary',
+          action_id: 'mark_done:' + encodeURIComponent(context.showName) + ':' + encodeURIComponent(context.task),
+          url: context.markDoneUrl,
+        }],
+      });
+    }
+
+    const escResult = sendSlack(config, escText, config.showSupportChannel, {
+      attachments: [{ color: '#dc2626', blocks: blocks }],
+    });
     _logSend(config.ss, context, 'slack (escalation)', action, escResult && escResult.ok, escResult && !escResult.ok ? escResult.error : '');
     if (escResult && escResult.ok) anySuccess = true;
   }
