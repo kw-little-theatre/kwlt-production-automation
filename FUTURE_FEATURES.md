@@ -18,11 +18,6 @@ The Season Runbook (`KWLT Runbook Template_ Season`) has ~27 tasks that are curr
 
 ---
 
-### Recurring task acknowledgment
-Currently, recurring weekly tasks (rehearsals, cleaning, social media content) generate many rows. Consider a "recurring reminder" mode that sends a single weekly ping without creating individual rows — less visual clutter in the timeline.
-
----
-
 ### Slack reaction tracking
 Monitor Slack reactions (e.g., ✅) on reminder messages and auto-mark tasks as Done. Requires upgrading from an incoming webhook to a full Slack app with `reactions:read` scope.
 
@@ -52,23 +47,3 @@ For dates that aren't known at season setup (e.g., readthrough date, first produ
 
 ### Form-based debrief scheduling
 After closing, automatically send a scheduling form (e.g., Doodle or Google Forms link) to the production team for the post-show debrief meeting, rather than requiring someone to do it manually.
-
----
-
-### Trim the task template
-The current task template has ~50 tasks (plus recurring expansions), which is too many. Review with Show Support to identify which tasks genuinely need automated reminders vs. which are just reference items that belong in the handbook. The template should focus on tasks that are:
-- Frequently forgotten
-- Have hard external deadlines (e.g., poster approval, rights invoices)
-- Require coordination between multiple people
-- Have policy-mandated timelines (e.g., 5-day audition notification rule)
-
-Tasks that are "nice to know" but self-evident to experienced production teams should be removed from automated reminders.
-
----
-
-## Completed
-
-### Per-show Slack channel routing
-Implemented via the Bot Token API (`chat.postMessage`). Each show's Slack Channel in Show Setup is used to route reminders to the correct channel. The bot must be invited to each channel (`/invite @AppName`).
-
-_(Move items here as they're implemented)_

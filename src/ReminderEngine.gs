@@ -23,7 +23,7 @@ function runDailyReminders() {
     return;
   }
 
-  const digestItems = [];  // Collect items for the daily digest email
+  const digestItems = [];  // Collect items for the reminder summary email
 
   for (const show of activeShows) {
     const tabName = SHOW_TAB_PREFIX + show.name;
@@ -99,7 +99,7 @@ function runDailyReminders() {
     }
   }
 
-  // Send daily digest to show support Slack channel
+  // Send reminder summary to show support Slack channel
   if (digestItems.length > 0 && config.showSupportChannel) {
     _sendDailyDigestSlack(digestItems, config);
   }
@@ -408,10 +408,10 @@ function _getActiveShows(ss) {
   return shows;
 }
 
-// ─── Daily Digest via Slack ────────────────────────────────────────────────────
+// ─── Reminder Summary via Slack ────────────────────────────────────────────────────
 
 /**
- * Sends a daily digest summary to the Show Support Slack channel.
+ * Sends a reminder summary summary to the Show Support Slack channel.
  */
 function _sendDailyDigestSlack(digestItems, config) {
   if (!config.showSupportChannel) return;
@@ -425,7 +425,7 @@ function _sendDailyDigestSlack(digestItems, config) {
     byShow[item.show].push(item);
   }
 
-  let text = '📋 *Daily Show Support Digest — ' + today + '*\n\n';
+  let text = '📋 *Show Support Reminder Summary — ' + today + '*\n\n';
 
   for (const [show, items] of Object.entries(byShow)) {
     text += '🎭 *' + show + '*\n';

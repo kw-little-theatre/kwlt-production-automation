@@ -102,7 +102,7 @@ function sendHtmlEmailReminder(to, subject, plainBody, markDoneUrl) {
 }
 
 /**
- * Sends the daily digest email to the Show Support Committee member.
+ * Sends the reminder summary email to the Show Support Committee member.
  * Aggregates all reminders sent today into a single summary.
  *
  * @param {Array} digestItems — array of { show, task, responsible, deadline, action, daysUntil, success }
@@ -123,7 +123,7 @@ function _sendDailyDigest(digestItems, config) {
     byShow[item.show].push(item);
   }
 
-  let body = 'Daily Show Support Digest — ' + today + '\n';
+  let body = 'Show Support Reminder Summary — ' + today + '\n';
   body += '═'.repeat(50) + '\n\n';
 
   for (const [show, items] of Object.entries(byShow)) {
@@ -152,11 +152,11 @@ function _sendDailyDigest(digestItems, config) {
   body += 'Total reminders sent today: ' + digestItems.filter(i => i.success).length + '/' + digestItems.length + '\n';
   body += '\nThis is an automated message from KWLT Show Support.';
 
-  // Use the Daily Digest template subject if available
-  const digestTemplate = _getTemplate(config.ss, 'Daily Digest');
+  // Use the Reminder Summary template subject if available
+  const digestTemplate = _getTemplate(config.ss, 'Reminder Summary');
   const subject = digestTemplate
     ? _renderTemplate(digestTemplate.subject, { date: today })
-    : '[KWLT] Daily Show Support Digest — ' + today;
+    : '[KWLT] Show Support Reminder Summary — ' + today;
 
   sendEmailReminder(config.showSupportEmail, subject, body);
 }

@@ -32,7 +32,7 @@ const SECRETS = [
   {
     key: 'SHOW_SUPPORT_EMAIL',
     label: 'Show Support Email',
-    description: 'Receives the daily digest (e.g., show-support@kwlt.org) — optional if using Slack',
+    description: 'Receives the reminder summary (e.g., show-support@kwlt.org) — optional if using Slack',
     sensitive: false,
   },
   {

@@ -9,7 +9,7 @@ Automated reminder system for Kitchener-Waterloo Little Theatre production teams
 - **One-click "Mark Done"** — production team members can mark tasks complete directly from Slack buttons or email links
 - **Escalates overdue tasks** to the Show Support Committee's Slack channel
 - **Provides a dashboard** (Season Overview) showing upcoming deadlines across all concurrent shows, refreshed daily
-- **Sends a daily digest** to the Show Support Slack channel summarizing all reminders sent that day
+- **Sends a reminder summary** to the Show Support Slack channel when reminders go out
 - **Secrets stored securely** — tokens and sensitive config are in Script Properties, not visible in the spreadsheet
 
 ## Architecture
@@ -38,7 +38,7 @@ Automated reminder system for Kitchener-Waterloo Little Theatre production teams
 │  Daily trigger (9 AM) → checks all active show tabs →        │
 │    → sends Slack messages with ✅ Mark Done buttons          │
 │    → sends HTML emails with ✅ Mark Done links               │
-│    → posts daily digest to show support Slack channel        │
+│    → posts reminder summary to show support Slack channel     │
 │    → escalates overdue tasks to show support Slack channel   │
 │    → refreshes Season Overview                               │
 │    → logs everything to Send Log                             │
