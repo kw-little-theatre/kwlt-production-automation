@@ -50,7 +50,14 @@ function runDailyReminders() {
       if (!deadline || !(deadline instanceof Date) || isNaN(deadline.getTime())) continue;
 
       const daysUntil = _daysBetween(today, deadline);
-      const action = _determineAction(daysUntil, status, config);
+      const taskName = taskData[COL.TASK];
+
+      // Send-on-date tasks only fire on the exact deadline date
+      if (_isSendOnDateTask(taskName)) {
+        if (daysUntil !== 0 || status !== STATUS.PENDING) continue;
+      }
+
+      const action = _isSendOnDateTask(taskName) ? 'advance' : _determineAction(daysUntil, status, config);
 
       if (action) {
         const context = {
@@ -299,6 +306,21 @@ function _isAutoCompleteTask(taskName) {
   const tasks = getTaskTemplateData();
   for (const t of tasks) {
     if (t.autoComplete && (t.task === taskName || taskName.indexOf(t.task) !== -1)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Checks if a task has the sendOnDate flag set.
+ * Send-on-date tasks bypass the normal advance/urgent reminder schedule
+ * and are only sent once on the exact deadline date.
+ */
+function _isSendOnDateTask(taskName) {
+  const tasks = getTaskTemplateData();
+  for (const t of tasks) {
+    if (t.sendOnDate && (t.task === taskName || taskName.indexOf(t.task) !== -1)) {
       return true;
     }
   }

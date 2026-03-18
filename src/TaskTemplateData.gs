@@ -137,6 +137,8 @@ function getTaskTemplateData() {
       notifyVia: 'both',
       recurring: false,
       phase: 'Auditions',
+      sendOnDate: true,
+      autoComplete: true,
       emailBody: 'Hello,\n\nAs auditions wrap up for {{SHOW_NAME}}, here are some important reminders about the casting process:\n\n1. Everyone who auditioned, regardless of whether they receive a role, must hear back about the result of their audition.\n2. Please encourage cast members not to announce their audition results until the cast list has been officially announced, to avoid hurt feelings.\n3. Please do not announce the cast list yourselves; KWLT shares it via official channels first. Once all the acceptances and rejections have gone out, please send the cast list to the Communications Committee (communications@kwlt.org).\n4. When scheduling the read-through, please invite the Show Support representative and Membership Director (membership@kwlt.org).\n\nMore detail around these rules can be found in the Policy Manual, under the Open Auditions Policy.\n\nIf you have any questions, please reach out to your Show Support representative.\n\n-- KWLT Show Support',
       emailSubject: '[KWLT] Casting Reminders -- {{SHOW_NAME}}',
     },
