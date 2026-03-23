@@ -79,11 +79,12 @@ function sendSlack(config, text, channel, opts) {
 // ─── Block Message Builders ───────────────────────────────────────────────────
 
 /**
- * Sends a slim block message with a "✅ Mark Done" button, then threads
- * a reply with extended details (responsible, timing rule, handbook, etc.).
+ * Sends a block message with task, responsible party, deadline, and a
+ * "✅ Mark Done" button, then threads a reply with extended details
+ * (timing rule, handbook, resources).
  *
- * The primary message is a single descriptive line so the channel stays
- * scannable. All supporting context lives in the thread.
+ * The primary message shows the task, who's responsible, and the deadline
+ * so the channel stays scannable. Supporting context lives in the thread.
  */
 function sendSlackBlockMessageWithButton(config, context, action) {
   const emoji = action === 'overdue' ? '🚨' : action === 'urgent' ? '⚠️' : '📋';
@@ -91,13 +92,13 @@ function sendSlackBlockMessageWithButton(config, context, action) {
 
   const label = action === 'overdue' ? 'Overdue' : action === 'urgent' ? 'Due tomorrow' : 'Upcoming';
 
-  // ── Primary message: single line + Mark Done button ────────────────────
+  // ── Primary message: task + responsible + deadline + Mark Done button ──
   const primaryBlocks = [
     {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: emoji + ' *' + label + ':* ' + context.task + ' — due ' + context.deadline,
+        text: emoji + ' *' + label + ':* ' + context.task + '\n👤 *Responsible:* ' + context.responsible + '  |  📅 *Due:* ' + context.deadline,
       },
     },
   ];
@@ -116,7 +117,7 @@ function sendSlackBlockMessageWithButton(config, context, action) {
   }
 
   // Fallback text shown in notifications / previews (no show name)
-  const fallbackText = emoji + ' ' + label + ': ' + context.task + ' — due ' + context.deadline;
+  const fallbackText = emoji + ' ' + label + ': ' + context.task + ' (' + context.responsible + ') — due ' + context.deadline;
 
   const parentResult = sendSlack(config, '', context.slackChannel, {
     attachments: [{ color: color, fallback: fallbackText, blocks: primaryBlocks }],
@@ -129,7 +130,6 @@ function sendSlackBlockMessageWithButton(config, context, action) {
       : '🗓️ ' + context.daysUntil + ' days remaining';
 
     const detailLines = [
-      '*Responsible:* ' + context.responsible,
       '*Deadline:* ' + context.deadline,
       '*Status:* ' + statusLine,
       '',
