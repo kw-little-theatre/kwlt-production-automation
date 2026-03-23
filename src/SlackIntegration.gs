@@ -21,8 +21,8 @@
  * @param {Object} config — loaded config (needs slackBotToken)
  * @param {string} text — message text (Slack mrkdwn)
  * @param {string} channel — channel name or ID (e.g., "#show-hamlet")
- * @param {Object} [opts] — optional: { attachments }
- * @returns {{ ok: boolean, error: string }}
+ * @param {Object} [opts] — optional: { attachments, thread_ts }
+ * @returns {{ ok: boolean, ts: string, error: string }}
  */
 function sendSlack(config, text, channel, opts) {
   if (!config.slackBotToken) {
@@ -46,6 +46,7 @@ function sendSlack(config, text, channel, opts) {
   };
 
   if (opts && opts.attachments) payload.attachments = opts.attachments;
+  if (opts && opts.thread_ts) payload.thread_ts = opts.thread_ts;
 
   try {
     const response = UrlFetchApp.fetch('https://slack.com/api/chat.postMessage', {
@@ -59,7 +60,7 @@ function sendSlack(config, text, channel, opts) {
     const result = JSON.parse(response.getContentText());
     if (result.ok) {
       Logger.log('Slack: Message sent to #' + ch);
-      return { ok: true };
+      return { ok: true, ts: result.ts };
     } else {
       var errMsg = result.error;
       if (result.needed) errMsg += ' (needed: ' + result.needed + ')';
@@ -78,48 +79,31 @@ function sendSlack(config, text, channel, opts) {
 // ─── Block Message Builders ───────────────────────────────────────────────────
 
 /**
- * Sends a rich block message with a "✅ Mark Done" button.
+ * Sends a slim block message with a "✅ Mark Done" button, then threads
+ * a reply with extended details (responsible, timing rule, handbook, etc.).
+ *
+ * The primary message is a single descriptive line so the channel stays
+ * scannable. All supporting context lives in the thread.
  */
 function sendSlackBlockMessageWithButton(config, context, action) {
   const emoji = action === 'overdue' ? '🚨' : action === 'urgent' ? '⚠️' : '📋';
   const color = action === 'overdue' ? '#dc2626' : action === 'urgent' ? '#f59e0b' : '#2563eb';
 
-  const headerText = action === 'overdue'
-    ? emoji + ' Overdue: ' + context.task
-    : action === 'urgent'
-    ? emoji + ' Due tomorrow: ' + context.task
-    : emoji + ' Upcoming: ' + context.task;
+  const label = action === 'overdue' ? 'Overdue' : action === 'urgent' ? 'Due tomorrow' : 'Upcoming';
 
-  const blocks = [
-    {
-      type: 'header',
-      text: {
-        type: 'plain_text',
-        text: headerText,
-      },
-    },
+  // ── Primary message: single line + Mark Done button ────────────────────
+  const primaryBlocks = [
     {
       type: 'section',
-      fields: [
-        { type: 'mrkdwn', text: '*Show:*\n' + context.showName },
-        { type: 'mrkdwn', text: '*Responsible:*\n' + context.responsible },
-        { type: 'mrkdwn', text: '*Deadline:*\n' + context.deadline },
-        { type: 'mrkdwn', text: '*Status:*\n' + (action === 'overdue'
-          ? context.daysOverdue + ' days overdue'
-          : context.daysUntil + ' days remaining') },
-      ],
-    },
-    {
-      type: 'context',
-      elements: [{
+      text: {
         type: 'mrkdwn',
-        text: '📌 ' + context.generalRule + (context.handbookUrl ? '  |  📖 <' + context.handbookUrl + '|Production Handbook>' : ''),
-      }],
+        text: emoji + ' *' + label + ':* ' + context.task + ' — due ' + context.deadline,
+      },
     },
   ];
 
   if (context.markDoneUrl) {
-    blocks.push({
+    primaryBlocks.push({
       type: 'actions',
       elements: [{
         type: 'button',
@@ -131,11 +115,40 @@ function sendSlackBlockMessageWithButton(config, context, action) {
     });
   }
 
-  const text = emoji + ' ' + context.showName + ': ' + context.task + ' — due ' + context.deadline;
+  // Fallback text shown in notifications / previews (no show name)
+  const fallbackText = emoji + ' ' + label + ': ' + context.task + ' — due ' + context.deadline;
 
-  return sendSlack(config, text, context.slackChannel, {
-    attachments: [{ color: color, blocks: blocks }],
+  const parentResult = sendSlack(config, '', context.slackChannel, {
+    attachments: [{ color: color, fallback: fallbackText, blocks: primaryBlocks }],
   });
+
+  // ── Threaded reply: full details & resources ───────────────────────────
+  if (parentResult && parentResult.ok && parentResult.ts) {
+    const statusLine = action === 'overdue'
+      ? '🚨 ' + context.daysOverdue + ' days overdue'
+      : '🗓️ ' + context.daysUntil + ' days remaining';
+
+    const detailLines = [
+      '*Responsible:* ' + context.responsible,
+      '*Deadline:* ' + context.deadline,
+      '*Status:* ' + statusLine,
+      '',
+      '📌 *Timing:* ' + context.generalRule,
+    ];
+
+    if (context.handbookUrl) {
+      detailLines.push('📖 <' + context.handbookUrl + '|Production Handbook>');
+    }
+    if (context.resourcesUrl) {
+      detailLines.push('📁 <' + context.resourcesUrl + '|Show Resources Folder>');
+    }
+
+    sendSlack(config, detailLines.join('\n'), context.slackChannel, {
+      thread_ts: parentResult.ts,
+    });
+  }
+
+  return parentResult;
 }
 
 // ─── Test Function ────────────────────────────────────────────────────────────
