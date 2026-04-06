@@ -85,13 +85,39 @@ function doPost(e) {
         if (result.success) {
           const reactivatedMsg = result.reactivated > 0
             ? '\n' + result.reactivated + ' dependent task(s) reactivated — reminders scheduled.'
-            : '\nNo dependent tasks needed reactivation.';
-          _sendSlackResponseUrl(payload.response_url,
-            '✅ *Readthrough date for ' + showName + '* set to *' + selectedDate + '* by ' + userName + '.' + reactivatedMsg,
-            false);
+            : '';
+          const changeMsg = result.wasChange ? ' (changed)' : '';
+
+          // Send confirmation with a "Change Date" button to the channel
+          const config = _loadConfig(SpreadsheetApp.getActiveSpreadsheet());
+          const channel = payload.channel ? payload.channel.id : '';
+          if (channel && config.slackBotToken) {
+            _sendReadthroughConfirmation(config, channel, showName, selectedDate, userName, reactivatedMsg + changeMsg);
+          } else {
+            _sendSlackResponseUrl(payload.response_url,
+              '✅ *Readthrough date for ' + showName + '* set to *' + selectedDate + '* by ' + userName + '.' +
+              reactivatedMsg + '\nMembership Director and Show Support have been notified.',
+              false);
+          }
         } else {
           _sendSlackResponseUrl(payload.response_url,
             '⚠️ Could not set readthrough date: ' + result.message,
+            true);
+        }
+
+        return ContentService.createTextOutput('').setMimeType(ContentService.MimeType.TEXT);
+      }
+
+      // ── Change readthrough date button ────────────────────────────────
+      if (actionId && actionId.startsWith('change_readthrough_date:')) {
+        const showName = decodeURIComponent(actionId.substring('change_readthrough_date:'.length));
+        const config = _loadConfig(SpreadsheetApp.getActiveSpreadsheet());
+        const channel = payload.channel ? payload.channel.id : '';
+
+        if (channel && config.slackBotToken) {
+          sendReadthroughDatePrompt(config, showName, channel);
+          _sendSlackResponseUrl(payload.response_url,
+            '📅 Date picker posted above — select the new readthrough date.',
             true);
         }
 
@@ -110,12 +136,42 @@ function doPost(e) {
         const userName = payload.user ? '<@' + payload.user.id + '>' : 'Someone';
 
         if (result.success) {
-          _sendSlackResponseUrl(payload.response_url,
-            '✅ *' + taskText + '* marked done by ' + userName,
-            false);
+          // Send confirmation with an Undo button to the channel
+          const config = _loadConfig(SpreadsheetApp.getActiveSpreadsheet());
+          const channel = payload.channel ? payload.channel.id : '';
+          if (channel && config.slackBotToken) {
+            _sendMarkDoneConfirmation(config, channel, showName, taskText, userName);
+          } else {
+            _sendSlackResponseUrl(payload.response_url,
+              '✅ *' + taskText + '* marked done by ' + userName,
+              false);
+          }
         } else {
           _sendSlackResponseUrl(payload.response_url,
             '⚠️ Could not mark task done: ' + result.message,
+            true);
+        }
+
+        return ContentService.createTextOutput('').setMimeType(ContentService.MimeType.TEXT);
+      }
+
+      // ── Mark Undone (undo) button interaction ────────────────────────
+      if (actionId && actionId.startsWith('mark_undone:')) {
+        const parts = actionId.substring('mark_undone:'.length);
+        const separatorIdx = parts.indexOf(':');
+        const showName = decodeURIComponent(parts.substring(0, separatorIdx));
+        const taskText = decodeURIComponent(parts.substring(separatorIdx + 1));
+
+        const result = _markTaskUndone(showName, taskText);
+        const userName = payload.user ? '<@' + payload.user.id + '>' : 'Someone';
+
+        if (result.success) {
+          _sendSlackResponseUrl(payload.response_url,
+            '↩️ *' + taskText + '* marked undone by ' + userName + ' — reminders will resume.',
+            false);
+        } else {
+          _sendSlackResponseUrl(payload.response_url,
+            '⚠️ Could not undo: ' + result.message,
             true);
         }
 
@@ -181,6 +237,104 @@ function _markTaskDone(showName, taskText) {
   return { success: false, message: 'Task "' + taskText + '" not found in the ' + showName + ' timeline.' };
 }
 
+/**
+ * Finds a task in a show's timeline tab and reverts it from Done to Pending.
+ * @param {string} showName — the show name (matches Show Setup)
+ * @param {string} taskText — the task description (partial match OK)
+ * @returns {{ success: boolean, message: string }}
+ */
+function _markTaskUndone(showName, taskText) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const tabName = SHOW_TAB_PREFIX + showName;
+  const sheet = ss.getSheetByName(tabName);
+
+  if (!sheet) {
+    return { success: false, message: 'Show tab "' + tabName + '" not found.' };
+  }
+
+  const data = sheet.getDataRange().getValues();
+
+  for (let row = 1; row < data.length; row++) {
+    const currentTask = String(data[row][COL.TASK]);
+    const currentStatus = data[row][COL.STATUS];
+
+    if (currentTask === taskText || currentTask.indexOf(taskText) !== -1 || taskText.indexOf(currentTask) !== -1) {
+      if (currentStatus !== STATUS.DONE) {
+        return { success: true, message: 'Task is not currently marked done (status: ' + currentStatus + ').' };
+      }
+
+      sheet.getRange(row + 1, COL.STATUS + 1).setValue(STATUS.PENDING);
+      sheet.getRange(row + 1, COL.NOTES + 1).setValue(
+        (data[row][COL.NOTES] ? data[row][COL.NOTES] + '\n' : '') +
+        'Undone via Slack at ' + new Date().toLocaleString()
+      );
+
+      _logSend(ss, { showName: showName, task: currentTask, responsible: data[row][COL.RESPONSIBLE] },
+        'web app', 'mark-undone', true);
+
+      return { success: true, message: 'Task reverted to Pending.' };
+    }
+  }
+
+  return { success: false, message: 'Task "' + taskText + '" not found in the ' + showName + ' timeline.' };
+}
+
+/**
+ * Sends a "marked done" confirmation with an Undo button to a Slack channel.
+ */
+function _sendMarkDoneConfirmation(config, channel, showName, taskText, userName) {
+  const blocks = [
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: '✅ *' + taskText + '* marked done by ' + userName,
+      },
+    },
+    {
+      type: 'actions',
+      elements: [{
+        type: 'button',
+        text: { type: 'plain_text', text: '↩️ Undo', emoji: true },
+        action_id: 'mark_undone:' + encodeURIComponent(showName) + ':' + encodeURIComponent(taskText),
+      }],
+    },
+  ];
+
+  sendSlack(config, '', channel, {
+    attachments: [{ color: '#059669', fallback: '✅ ' + taskText + ' marked done by ' + userName, blocks: blocks }],
+  });
+}
+
+/**
+ * Sends a readthrough date confirmation with a "Change Date" button.
+ */
+function _sendReadthroughConfirmation(config, channel, showName, dateStr, userName, extraMsg) {
+  const blocks = [
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: '✅ *Readthrough date for ' + showName + '* set to *' + dateStr + '* by ' + userName + '.' +
+          (extraMsg || '') +
+          '\nMembership Director and Show Support have been notified.',
+      },
+    },
+    {
+      type: 'actions',
+      elements: [{
+        type: 'button',
+        text: { type: 'plain_text', text: '📅 Change Date', emoji: true },
+        action_id: 'change_readthrough_date:' + encodeURIComponent(showName),
+      }],
+    },
+  ];
+
+  sendSlack(config, '', channel, {
+    attachments: [{ color: '#6d28d9', fallback: '✅ Readthrough date for ' + showName + ' set to ' + dateStr, blocks: blocks }],
+  });
+}
+
 // ─── Readthrough Date Update ──────────────────────────────────────────────────
 
 /**
@@ -217,6 +371,21 @@ function _setReadthroughDate(showName, dateStr) {
         return { success: false, message: 'Invalid date: ' + dateStr };
       }
 
+      // Check if there was a previous date (change vs first-set)
+      const previousValue = data[i][readthroughCol];
+      const hadPreviousDate = previousValue instanceof Date ||
+        (previousValue && !isNaN(new Date(previousValue).getTime()));
+      const previousDateStr = hadPreviousDate
+        ? Utilities.formatDate(
+            previousValue instanceof Date ? previousValue : new Date(previousValue),
+            Session.getScriptTimeZone(), 'yyyy-MM-dd')
+        : null;
+
+      // Skip if the date didn't actually change
+      if (previousDateStr === dateStr) {
+        return { success: true, message: 'Date unchanged.', reactivated: 0, wasChange: false };
+      }
+
       // Set the readthrough date
       sheet.getRange(i + 1, readthroughCol + 1).setValue(parsedDate);
 
@@ -229,8 +398,17 @@ function _setReadthroughDate(showName, dateStr) {
       // Immediately reactivate skipped readthrough-dependent tasks
       const reactivated = _reactivateReadthroughTasksForShow(ss, showName, parsedDate);
 
-      Logger.log('Readthrough date for "' + showName + '" set to ' + dateStr + ' via Slack date picker. Reactivated ' + reactivated + ' task(s).');
-      return { success: true, message: 'Readthrough date set to ' + dateStr, reactivated: reactivated };
+      // Send appropriate notifications (first-set vs change)
+      if (hadPreviousDate && previousDateStr) {
+        _notifyReadthroughDateChanged(ss, showName, previousDateStr, dateStr);
+      } else {
+        _notifyReadthroughDateSet(ss, showName, dateStr);
+      }
+
+      Logger.log('Readthrough date for "' + showName + '" set to ' + dateStr + ' via Slack date picker.' +
+        (hadPreviousDate ? ' (changed from ' + previousDateStr + ')' : '') +
+        ' Reactivated ' + reactivated + ' task(s).');
+      return { success: true, message: 'Readthrough date set to ' + dateStr, reactivated: reactivated, wasChange: hadPreviousDate };
     }
   }
 
@@ -350,6 +528,57 @@ function _lookupOriginalNotifyVia(taskName) {
   return null;
 }
 
+// ─── Readthrough Date Notifications ───────────────────────────────────────────
+
+/**
+ * Sends notifications when a readthrough date is set:
+ *   1. Email to the Membership Director (CC: show email) with RSVP info
+ *   2. Slack FYI to the Show Support channel
+ *
+ * @param {SpreadsheetApp.Spreadsheet} ss
+ * @param {string} showName
+ * @param {string} dateStr — YYYY-MM-DD
+ */
+function _notifyReadthroughDateSet(ss, showName, dateStr) {
+  const config = _loadConfig(ss);
+
+  // Look up the show's email for CC
+  const showData = _getActiveShows(ss).find(function(s) { return s.name === showName; });
+  const showEmail = showData ? showData.showEmail : '';
+
+  // ── Email to Membership Director (CC: show email) ─────────────────────
+  if (config.membershipEmail) {
+    const subject = '[KWLT] Readthrough Date Set -- ' + showName;
+    const body = 'Hello,\n\n' +
+      'The readthrough date for ' + showName + ' has been set to ' + dateStr + '.\n\n' +
+      'As Membership Director, you are invited to attend. Please RSVP with the production team' +
+      (showEmail ? ' (' + showEmail + ')' : '') + ' to confirm your attendance.\n\n' +
+      'If you have any questions, please reach out to the Show Support Committee.\n\n' +
+      '-- KWLT Show Support';
+
+    try {
+      GmailApp.sendEmail(config.membershipEmail, _stripEmoji(subject), body, {
+        name: 'KWLT Show Support',
+        cc: showEmail || undefined,
+        noReply: false,
+      });
+      Logger.log('Readthrough notification email sent to ' + config.membershipEmail + (showEmail ? ' (CC: ' + showEmail + ')' : ''));
+    } catch (e) {
+      Logger.log('Failed to send readthrough notification email: ' + e.message);
+    }
+  } else {
+    Logger.log('No Membership Email configured — skipping readthrough email notification.');
+  }
+
+  // ── Slack FYI to Show Support channel ─────────────────────────────────
+  if (config.showSupportChannel) {
+    const slackMsg = '📅 *Readthrough date set for ' + showName + '*: *' + dateStr + '*\n' +
+      'The Show Support liaison is invited to attend — please RSVP with the production team.' +
+      (showEmail ? ' (' + showEmail + ')' : '');
+    sendSlack(config, slackMsg, config.showSupportChannel);
+  }
+}
+
 // ─── Slack Response URL Helper ────────────────────────────────────────────────
 
 /**
@@ -456,4 +685,130 @@ function _escapeHtml(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+// ─── Show Setup onEdit Handler ────────────────────────────────────────────────
+
+/**
+ * Installable onEdit trigger handler. Detects when the Readthrough Date
+ * column is changed in the Show Setup sheet (for an existing date — not
+ * first entry) and fires notifications + recomputes dependent tasks.
+ *
+ * Installed via: Menu → Install Daily Trigger (also installs this).
+ *
+ * @param {Object} e — the edit event object
+ */
+function onShowSetupEdit(e) {
+  if (!e || !e.range) return;
+
+  const sheet = e.range.getSheet();
+  if (sheet.getName() !== SHEET_SHOW_SETUP) return;
+
+  const ss = sheet.getParent();
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+
+  // Find the Readthrough Date column
+  const readthroughCol = headers.findIndex(function(h) {
+    return String(h).indexOf(ANCHOR.READTHROUGH) === 0;
+  });
+  if (readthroughCol === -1) return;
+
+  // Check if the edited cell is in the Readthrough Date column
+  const editedCol = e.range.getColumn() - 1; // 0-based
+  if (editedCol !== readthroughCol) return;
+
+  // Only act on changes to an existing date (not first entry)
+  const oldValue = e.oldValue;
+  if (!oldValue) return; // First entry — the date picker flow handles notifications
+
+  const newValue = e.range.getValue();
+  if (!newValue) return; // Date was cleared — nothing to do
+
+  // Parse the new date
+  const newDate = newValue instanceof Date ? newValue : new Date(newValue);
+  if (isNaN(newDate.getTime())) return;
+
+  // Parse the old date for the notification message
+  const oldDate = new Date(oldValue);
+  const oldDateStr = !isNaN(oldDate.getTime())
+    ? Utilities.formatDate(oldDate, Session.getScriptTimeZone(), 'yyyy-MM-dd')
+    : oldValue;
+  const newDateStr = Utilities.formatDate(newDate, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+
+  // If the date didn't actually change, skip
+  if (oldDateStr === newDateStr) return;
+
+  // Get the show name from column A of the edited row
+  const editedRow = e.range.getRow();
+  const showName = sheet.getRange(editedRow, 1).getValue();
+  if (!showName) return;
+
+  Logger.log('Readthrough date changed for "' + showName + '": ' + oldDateStr + ' → ' + newDateStr);
+
+  // Recompute dependent task deadlines
+  const reactivated = _reactivateReadthroughTasksForShow(ss, showName, newDate);
+
+  // Send change notifications
+  _notifyReadthroughDateChanged(ss, showName, oldDateStr, newDateStr);
+
+  Logger.log('Readthrough date change processed for "' + showName + '". ' + reactivated + ' task(s) updated.');
+}
+
+/**
+ * Sends notifications when a readthrough date is CHANGED (not first set):
+ *   1. Email to Membership Director (CC: show email) about the date change
+ *   2. Slack FYI to Show Support channel
+ *   3. Slack notice to the show's own channel
+ *
+ * @param {SpreadsheetApp.Spreadsheet} ss
+ * @param {string} showName
+ * @param {string} oldDateStr — previous date (YYYY-MM-DD)
+ * @param {string} newDateStr — new date (YYYY-MM-DD)
+ */
+function _notifyReadthroughDateChanged(ss, showName, oldDateStr, newDateStr) {
+  const config = _loadConfig(ss);
+  const showData = _getActiveShows(ss).find(function(s) { return s.name === showName; });
+  const showEmail = showData ? showData.showEmail : '';
+
+  // ── Email to Membership Director ──────────────────────────────────────
+  if (config.membershipEmail) {
+    const subject = '[KWLT] Readthrough Date Changed -- ' + showName;
+    const body = 'Hello,\n\n' +
+      'The readthrough date for ' + showName + ' has changed:\n\n' +
+      '  Previous date: ' + oldDateStr + '\n' +
+      '  New date: ' + newDateStr + '\n\n' +
+      'Please update your RSVP with the production team' +
+      (showEmail ? ' (' + showEmail + ')' : '') + '.\n\n' +
+      '-- KWLT Show Support';
+
+    try {
+      GmailApp.sendEmail(config.membershipEmail, _stripEmoji(subject), body, {
+        name: 'KWLT Show Support',
+        cc: showEmail || undefined,
+        noReply: false,
+      });
+      Logger.log('Readthrough date change email sent to ' + config.membershipEmail);
+    } catch (e) {
+      Logger.log('Failed to send readthrough date change email: ' + e.message);
+    }
+  }
+
+  // ── Slack FYI to Show Support channel ─────────────────────────────────
+  if (config.showSupportChannel) {
+    sendSlack(config,
+      '📅 *Readthrough date changed for ' + showName + '*\n' +
+      '~' + oldDateStr + '~ → *' + newDateStr + '*\n' +
+      'The Show Support liaison is invited to attend — please update your RSVP with the production team.' +
+      (showEmail ? ' (' + showEmail + ')' : ''),
+      config.showSupportChannel);
+  }
+
+  // ── Slack notice to the show's channel ────────────────────────────────
+  if (showData && showData.slackChannel) {
+    sendSlack(config,
+      '📅 *Readthrough date updated for ' + showName + '*\n' +
+      '~' + oldDateStr + '~ → *' + newDateStr + '*\n' +
+      'Dependent task deadlines have been adjusted.',
+      showData.slackChannel);
+  }
 }

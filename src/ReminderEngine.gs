@@ -396,6 +396,7 @@ function _loadConfig(ss) {
     escalationEmail: '',  // legacy — overdue escalation now goes to Slack
     showSupportEmail: props.getProperty('SHOW_SUPPORT_EMAIL') || '',
     webAppUrl: props.getProperty('WEB_APP_URL') || '',
+    membershipEmail: props.getProperty('MEMBERSHIP_EMAIL') || '',
     slackDefaultChannel: '',
     advanceReminderDays: REMINDER_ADVANCE_DAYS,
     urgentReminderDays: REMINDER_URGENT_DAYS,

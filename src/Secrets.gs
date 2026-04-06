@@ -35,6 +35,12 @@ const SECRETS = [
     description: 'Deployed web app URL for Mark Done links',
     sensitive: false,
   },
+  {
+    key: 'MEMBERSHIP_EMAIL',
+    label: 'Membership Email',
+    description: 'Membership Director email (e.g., membership@kwlt.org) — receives readthrough date notifications',
+    sensitive: false,
+  },
 ];
 
 // ─── Manage Secrets Menu ──────────────────────────────────────────────────────

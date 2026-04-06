@@ -191,7 +191,8 @@ function installDailyTrigger() {
   // Remove any existing triggers first to prevent duplicates
   const existing = ScriptApp.getProjectTriggers();
   for (const trigger of existing) {
-    if (trigger.getHandlerFunction() === 'runDailyReminders') {
+    if (trigger.getHandlerFunction() === 'runDailyReminders' ||
+        trigger.getHandlerFunction() === 'onShowSetupEdit') {
       ScriptApp.deleteTrigger(trigger);
     }
   }
@@ -202,11 +203,18 @@ function installDailyTrigger() {
     .atHour(TRIGGER_HOUR)
     .create();
 
+  // Installable onEdit trigger for Show Setup date changes
+  // (simple onEdit can't call UrlFetchApp/GmailApp)
+  ScriptApp.newTrigger('onShowSetupEdit')
+    .forSpreadsheet(SpreadsheetApp.getActiveSpreadsheet())
+    .onEdit()
+    .create();
+
   SpreadsheetApp.getUi().alert(
-    '⏰ Trigger Installed',
-    'Daily reminders will run at approximately ' + TRIGGER_HOUR + ':00 each day.\n\n' +
-    'The trigger will check all active shows and send reminders as needed.\n' +
-    'You can test it now: Menu → 🎭 KWLT Automation → Run Reminders Now.',
+    '⏰ Triggers Installed',
+    'Daily reminders will run at approximately ' + TRIGGER_HOUR + ':00 each day.\n' +
+    'Show Setup date changes will be detected automatically.\n\n' +
+    'You can test reminders now: Menu → 🎭 KWLT Automation → Run Reminders Now.',
     SpreadsheetApp.getUi().ButtonSet.OK
   );
 }
