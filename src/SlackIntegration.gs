@@ -150,7 +150,7 @@ function sendSlackBlockMessageWithButton(config, context, action) {
   return parentResult;
 }
 
-// ─── Test Function ────────────────────────────────────────────────────────────
+// ─── Readthrough Date Prompt ──────────────────────────────────────────────────
 
 /**
  * Sends a Slack message with a Block Kit date picker asking the production

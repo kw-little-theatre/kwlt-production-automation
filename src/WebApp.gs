@@ -257,6 +257,7 @@ function _reactivateReadthroughTasksForShow(ss, showName, readthroughDate) {
   today.setHours(0, 0, 0, 0);
 
   const config = _loadConfig(ss);
+  const showData = _getActiveShows(ss).find(function(s) { return s.name === showName; });
   let reactivated = 0;
 
   for (let row = 1; row < data.length; row++) {
@@ -264,11 +265,19 @@ function _reactivateReadthroughTasksForShow(ss, showName, readthroughDate) {
     const notes = String(data[row][COL.NOTES] || '');
     const anchorRef = data[row][COL.ANCHOR_REF];
 
-    // Only reactivate tasks that were skipped because readthrough was missing
-    if (status !== STATUS.SKIPPED ||
-        notes.indexOf('Skipped') === -1 ||
-        notes.indexOf(ANCHOR.READTHROUGH) === -1 ||
-        anchorRef !== ANCHOR.READTHROUGH) {
+    // Match tasks anchored to Readthrough that are either:
+    //   - Skipped because the date was missing (first time setting)
+    //   - Already reactivated from a previous pick (re-pick / correction)
+    const isSkippedReadthrough = status === STATUS.SKIPPED &&
+        notes.indexOf('Skipped') !== -1 &&
+        notes.indexOf(ANCHOR.READTHROUGH) !== -1 &&
+        anchorRef === ANCHOR.READTHROUGH;
+
+    const isPreviouslyReactivated = anchorRef === ANCHOR.READTHROUGH &&
+        notes.indexOf('Reactivated') !== -1 &&
+        (status === STATUS.PENDING || status === STATUS.ADVANCE_SENT || status === STATUS.URGENT_SENT);
+
+    if (!isSkippedReadthrough && !isPreviouslyReactivated) {
       continue;
     }
 
@@ -295,35 +304,31 @@ function _reactivateReadthroughTasksForShow(ss, showName, readthroughDate) {
     const daysUntil = Math.round((newDate.getTime() - today.getTime()) / 86400000);
     const action = _determineAction(daysUntil, STATUS.PENDING, config);
 
-    if (action) {
-      // Find show details for building the reminder context
-      const showData = _getActiveShows(ss).find(function(s) { return s.name === showName; });
-      if (showData) {
-        const context = {
-          showName: showName,
-          task: taskName,
-          responsible: data[row][COL.RESPONSIBLE],
-          generalRule: data[row][COL.GENERAL_RULE],
-          deadline: Utilities.formatDate(newDate, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
-          daysUntil: daysUntil,
-          daysOverdue: daysUntil < 0 ? Math.abs(daysUntil) : 0,
-          slackChannel: showData.slackChannel,
-          showEmail: showData.showEmail,
-          resourcesUrl: showData.resourcesUrl,
-          handbookUrl: config.handbookUrl,
-          notifyVia: originalNotifyVia,
-          markDoneUrl: buildMarkDoneUrl(config.webAppUrl, showName, taskName),
-        };
+    if (action && showData) {
+      const context = {
+        showName: showName,
+        task: taskName,
+        responsible: data[row][COL.RESPONSIBLE],
+        generalRule: data[row][COL.GENERAL_RULE],
+        deadline: Utilities.formatDate(newDate, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
+        daysUntil: daysUntil,
+        daysOverdue: daysUntil < 0 ? Math.abs(daysUntil) : 0,
+        slackChannel: showData.slackChannel,
+        showEmail: showData.showEmail,
+        resourcesUrl: showData.resourcesUrl,
+        handbookUrl: config.handbookUrl,
+        notifyVia: originalNotifyVia,
+        markDoneUrl: buildMarkDoneUrl(config.webAppUrl, showName, taskName),
+      };
 
-        const success = _executeAction(action, context, config);
-        if (success) {
-          const isAutoComplete = _isAutoCompleteTask(taskName);
-          const newStatus = isAutoComplete ? STATUS.DONE : _statusAfterAction(action);
-          sheet.getRange(row + 1, COL.STATUS + 1).setValue(newStatus);
-          sheet.getRange(row + 1, COL.LAST_NOTIFIED + 1).setValue(new Date());
-          if (isAutoComplete) {
-            sheet.getRange(row + 1, COL.NOTES + 1).setValue('Auto-completed after sending (reactivated)');
-          }
+      const success = _executeAction(action, context, config);
+      if (success) {
+        const isAutoComplete = _isAutoCompleteTask(taskName);
+        const newStatus = isAutoComplete ? STATUS.DONE : _statusAfterAction(action);
+        sheet.getRange(row + 1, COL.STATUS + 1).setValue(newStatus);
+        sheet.getRange(row + 1, COL.LAST_NOTIFIED + 1).setValue(new Date());
+        if (isAutoComplete) {
+          sheet.getRange(row + 1, COL.NOTES + 1).setValue('Auto-completed after sending (reactivated)');
         }
       }
     }
