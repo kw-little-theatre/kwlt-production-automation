@@ -23,6 +23,9 @@ function runDailyReminders() {
     return;
   }
 
+  // ── Step 1: Reactivate readthrough tasks if the date was recently filled in ──
+  _reactivateReadthroughTasks(ss, activeShows);
+
   const digestItems = [];  // Collect items for the reminder summary email
 
   for (const show of activeShows) {
@@ -112,6 +115,9 @@ function runDailyReminders() {
   if (digestItems.length > 0 && config.showSupportChannel) {
     _sendDailyDigestSlack(digestItems, config);
   }
+
+  // ── Prompt for missing readthrough dates (after auditions close) ──────
+  _promptForReadthroughDate(ss, config, activeShows, today);
 
   // Refresh the Season Overview so it's always current
   _refreshSeasonOverviewSilent(ss);
@@ -242,7 +248,6 @@ function _executeAction(action, context, config) {
           text: { type: 'plain_text', text: '✅ Mark Done', emoji: true },
           style: 'primary',
           action_id: 'mark_done:' + encodeURIComponent(context.showName) + ':' + encodeURIComponent(context.task),
-          url: context.markDoneUrl,
         }],
       });
     }
@@ -421,7 +426,9 @@ function _loadConfig(ss) {
 // ─── Active Shows ─────────────────────────────────────────────────────────────
 
 /**
- * Returns an array of { name, slackChannel } for shows marked Active = TRUE.
+ * Returns an array of { name, slackChannel, showEmail, resourcesUrl,
+ * auditionEnd, readthroughDate, readthroughPromptLastSent }
+ * for shows marked Active = TRUE.
  */
 function _getActiveShows(ss) {
   const sheet = ss.getSheetByName(SHEET_SHOW_SETUP);
@@ -435,19 +442,162 @@ function _getActiveShows(ss) {
   const resourcesCol = headers.indexOf('Resources Folder URL');
   const activeCol = headers.indexOf('Active?');
 
+  // Find anchor date columns (headers may have suffixes like " *", " (auto)", " (opt)")
+  const auditionStartCol = headers.findIndex(function(h) { return String(h).indexOf(ANCHOR.AUDITION_START) === 0; });
+  const auditionEndCol = headers.findIndex(function(h) { return String(h).indexOf(ANCHOR.AUDITION_END) === 0; });
+  const readthroughCol = headers.findIndex(function(h) { return String(h).indexOf(ANCHOR.READTHROUGH) === 0; });
+  const promptCol = headers.indexOf('Readthrough Prompt Last Sent');
+
   const shows = [];
   for (let i = 1; i < data.length; i++) {
     const active = String(data[i][activeCol]).toUpperCase();
     if (active === 'TRUE' || active === 'YES') {
+      const auditionStartRaw = auditionStartCol !== -1 ? data[i][auditionStartCol] : '';
+      const auditionEndRaw = auditionEndCol !== -1 ? data[i][auditionEndCol] : '';
+      const readthrough = readthroughCol !== -1 ? data[i][readthroughCol] : '';
+      const promptLast = promptCol !== -1 ? data[i][promptCol] : '';
+
+      // Parse audition end, with auto-derivation fallback (same as _getAnchorDates)
+      let auditionEnd = auditionEndRaw instanceof Date ? auditionEndRaw : (auditionEndRaw ? new Date(auditionEndRaw) : null);
+      if (!auditionEnd || isNaN(auditionEnd.getTime())) {
+        const auditionStart = auditionStartRaw instanceof Date ? auditionStartRaw : (auditionStartRaw ? new Date(auditionStartRaw) : null);
+        if (auditionStart && !isNaN(auditionStart.getTime())) {
+          auditionEnd = new Date(auditionStart);
+          auditionEnd.setDate(auditionEnd.getDate() + 2); // 3-day audition weekend
+        }
+      }
+
       shows.push({
         name: data[i][nameCol],
         slackChannel: slackCol !== -1 ? data[i][slackCol] : '',
         showEmail: emailCol !== -1 ? data[i][emailCol] : '',
         resourcesUrl: resourcesCol !== -1 ? data[i][resourcesCol] : '',
+        auditionEnd: auditionEnd,
+        readthroughDate: readthrough instanceof Date ? readthrough : (readthrough ? new Date(readthrough) : null),
+        readthroughPromptLastSent: promptLast instanceof Date ? promptLast : (promptLast ? new Date(promptLast) : null),
+        setupRowIndex: i,  // 0-based data row index (1-based sheet row = i + 1)
       });
     }
   }
   return shows;
+}
+
+// ─── Readthrough Date: Reactivation & Prompting ──────────────────────────────
+
+/**
+ * Checks each active show for a newly-filled readthrough date. If found,
+ * recomputes deadlines for any tasks that were skipped because the
+ * readthrough date was previously missing, and reactivates them.
+ *
+ * @param {SpreadsheetApp.Spreadsheet} ss
+ * @param {Object[]} activeShows — from _getActiveShows()
+ */
+function _reactivateReadthroughTasks(ss, activeShows) {
+  for (const show of activeShows) {
+    if (!show.readthroughDate || isNaN(show.readthroughDate.getTime())) continue;
+
+    const tabName = SHOW_TAB_PREFIX + show.name;
+    const sheet = ss.getSheetByName(tabName);
+    if (!sheet) continue;
+
+    const data = sheet.getDataRange().getValues();
+    let reactivated = 0;
+
+    for (let row = 1; row < data.length; row++) {
+      const status = data[row][COL.STATUS];
+      const notes = String(data[row][COL.NOTES] || '');
+      const anchorRef = data[row][COL.ANCHOR_REF];
+
+      // Only reactivate tasks that were skipped because readthrough was missing
+      if (status === STATUS.SKIPPED &&
+          notes.indexOf('Skipped') !== -1 &&
+          notes.indexOf(ANCHOR.READTHROUGH) !== -1 &&
+          anchorRef === ANCHOR.READTHROUGH) {
+
+        // Recompute the deadline
+        const offsetDays = Number(data[row][COL.OFFSET_DAYS]) || 0;
+        const newDate = new Date(show.readthroughDate);
+        newDate.setDate(newDate.getDate() + offsetDays);
+
+        sheet.getRange(row + 1, COL.COMPUTED_DATE + 1).setValue(newDate);
+        sheet.getRange(row + 1, COL.STATUS + 1).setValue(STATUS.PENDING);
+        sheet.getRange(row + 1, COL.NOTIFY_VIA + 1).setValue(data[row][COL.NOTIFY_VIA] === 'none' ? 'both' : data[row][COL.NOTIFY_VIA]);
+        sheet.getRange(row + 1, COL.NOTES + 1).setValue(
+          'Reactivated — readthrough date set to ' +
+          Utilities.formatDate(show.readthroughDate, Session.getScriptTimeZone(), 'yyyy-MM-dd')
+        );
+        reactivated++;
+      }
+    }
+
+    if (reactivated > 0) {
+      Logger.log('Reactivated ' + reactivated + ' readthrough task(s) for "' + show.name + '".');
+
+      // Notify the show channel about reactivation
+      if (show.slackChannel) {
+        const config = _loadConfig(ss);
+        sendSlack(config,
+          '✅ *Readthrough date set for ' + show.name + '* (' +
+          Utilities.formatDate(show.readthroughDate, Session.getScriptTimeZone(), 'yyyy-MM-dd') +
+          ')\n' + reactivated + ' dependent task(s) have been activated and will be tracked.',
+          show.slackChannel
+        );
+      }
+    }
+  }
+}
+
+/**
+ * For each active show that is missing a readthrough date and past audition
+ * end, sends a Slack date picker prompt (if one hasn't been sent in the
+ * last 7 days). Records the prompt timestamp in Show Setup.
+ *
+ * @param {SpreadsheetApp.Spreadsheet} ss
+ * @param {Object} config — loaded config
+ * @param {Object[]} activeShows — from _getActiveShows()
+ * @param {Date} today — today's date (stripped to midnight)
+ */
+function _promptForReadthroughDate(ss, config, activeShows, today) {
+  if (!config.sendSlack) return;
+
+  const setupSheet = ss.getSheetByName(SHEET_SHOW_SETUP);
+  if (!setupSheet) return;
+
+  const headers = setupSheet.getDataRange().getValues()[0];
+  const promptCol = headers.indexOf('Readthrough Prompt Last Sent');
+  // promptCol may be -1 if the column hasn't been added yet — still send prompts,
+  // just can't throttle to once per week without it.
+
+  for (const show of activeShows) {
+    // Skip if readthrough date is already set
+    if (show.readthroughDate && !isNaN(show.readthroughDate.getTime())) continue;
+
+    // Skip if no Slack channel configured
+    if (!show.slackChannel) continue;
+
+    // Skip if audition end hasn't passed yet (need at least 1 day after)
+    if (!show.auditionEnd || isNaN(show.auditionEnd.getTime())) continue;
+    const daysSinceAuditionEnd = _daysBetween(show.auditionEnd, today);
+    if (daysSinceAuditionEnd < 1) continue;
+
+    // Skip if we already prompted today
+    if (show.readthroughPromptLastSent && !isNaN(show.readthroughPromptLastSent.getTime())) {
+      const daysSinceLastPrompt = _daysBetween(show.readthroughPromptLastSent, today);
+      if (daysSinceLastPrompt < 1) continue;
+    }
+
+    // Send the date picker prompt
+    const result = sendReadthroughDatePrompt(config, show.name, show.slackChannel);
+    if (result && result.ok) {
+      // Record the prompt timestamp in Show Setup (if tracking column exists)
+      if (promptCol !== -1) {
+        setupSheet.getRange(show.setupRowIndex + 1, promptCol + 1).setValue(new Date());
+      }
+      Logger.log('Sent readthrough date prompt for "' + show.name + '" to #' + show.slackChannel);
+    } else {
+      Logger.log('Failed to send readthrough date prompt for "' + show.name + '": ' + (result && result.error || 'Unknown error'));
+    }
+  }
 }
 
 // ─── Reminder Summary via Slack ────────────────────────────────────────────────────

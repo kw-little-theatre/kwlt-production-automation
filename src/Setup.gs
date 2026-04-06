@@ -119,9 +119,10 @@ function _createShowSetupSheet(ss) {
     ANCHOR.TECH_WEEKEND_END + ' (auto)',
     // Optional (tasks skipped if blank)
     ANCHOR.READTHROUGH + ' (opt)',
-    // Status
+    // Status & tracking
     'Timeline Created?',
     'Active?',
+    'Readthrough Prompt Last Sent',
   ];
 
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
@@ -359,6 +360,12 @@ function _createReadmeSheet(ss) {
     [''],
     ['SEASON OVERVIEW'],
     ['Menu → 🎭 KWLT Automation → Refresh Season Overview to see upcoming deadlines across ALL shows.'],
+    [''],
+    ['READTHROUGH DATE PROMPT'],
+    ['If a show\'s readthrough date is left blank, the system will prompt the show\'s Slack channel'],
+    ['with a date picker 1 day after auditions end. The prompt repeats weekly until the date is set.'],
+    ['When a date is chosen, dependent tasks are automatically reactivated on the next daily run.'],
+    ['Requires: Slack app Interactivity enabled → Request URL = your Apps Script web app URL.'],
     [''],
     ['TROUBLESHOOTING'],
     ['• Check 📨 Send Log for a history of all sent messages and any errors.'],

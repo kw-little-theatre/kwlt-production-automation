@@ -4,12 +4,15 @@ Tracked ideas for improving the KWLT Production Automation system.
 
 ## Planned
 
-### Slack prompt for Readthrough date
-After the last day of auditions, automatically post a message in the show's Slack channel asking the Stage Manager / Director to provide the readthrough date. When they reply (or fill in the Show Setup sheet), the system updates the timeline and activates the readthrough-dependent tasks.
+### ~~Slack prompt for Readthrough date~~ ✅ Implemented
+After the last day of auditions, automatically post a message in the show's Slack channel with a Slack date picker asking the Stage Manager / Director to provide the readthrough date. When they select a date via the picker, the system updates the Show Setup sheet and the daily run reactivates any readthrough-dependent tasks that were skipped.
 
-**Why**: Readthrough date is almost never known far in advance and is typically determined after auditions. Making it optional at setup avoids forcing a guess, but we need a mechanism to collect it later.
-
-**Complexity**: Medium — requires either a Slack app with message-reading capability, or a simpler "fill in the sheet and re-run" workflow with a Slack nudge.
+**Implementation notes:**
+- Posts a Block Kit message with a `datepicker` element 1 day after audition end
+- Re-prompts weekly until the date is set
+- `doPost` handler in WebApp.gs processes the Slack interaction and writes the date to Show Setup
+- `_reactivateReadthroughTasks()` in ReminderEngine.gs detects newly-set dates and recomputes deadlines
+- **Requires**: Slack app Interactivity enabled with Request URL set to the Apps Script web app URL
 
 ---
 

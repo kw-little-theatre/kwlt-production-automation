@@ -111,7 +111,6 @@ function sendSlackBlockMessageWithButton(config, context, action) {
         text: { type: 'plain_text', text: '✅ Mark Done', emoji: true },
         style: 'primary',
         action_id: 'mark_done:' + encodeURIComponent(context.showName) + ':' + encodeURIComponent(context.task),
-        url: context.markDoneUrl,
       }],
     });
   }
@@ -149,6 +148,60 @@ function sendSlackBlockMessageWithButton(config, context, action) {
   }
 
   return parentResult;
+}
+
+// ─── Test Function ────────────────────────────────────────────────────────────
+
+/**
+ * Sends a Slack message with a Block Kit date picker asking the production
+ * team to select the readthrough date. Used after auditions close when the
+ * readthrough date hasn't been set in Show Setup.
+ *
+ * @param {Object} config — loaded config (needs slackBotToken)
+ * @param {string} showName — the show name
+ * @param {string} channel — the show's Slack channel
+ * @returns {{ ok: boolean, ts: string, error: string }}
+ */
+function sendReadthroughDatePrompt(config, showName, channel) {
+  const blocks = [
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: '📅 *Readthrough Date Needed — ' + showName + '*\n\n' +
+          'Auditions are wrapped! When is the readthrough? ' +
+          'Pick a date below so reminders for readthrough-dependent tasks can be scheduled.',
+      },
+    },
+    {
+      type: 'actions',
+      elements: [
+        {
+          type: 'datepicker',
+          action_id: 'readthrough_date:' + encodeURIComponent(showName),
+          placeholder: {
+            type: 'plain_text',
+            text: 'Choose readthrough date',
+          },
+        },
+      ],
+    },
+    {
+      type: 'context',
+      elements: [
+        {
+          type: 'mrkdwn',
+          text: '_This prompt will repeat daily until the date is set._',
+        },
+      ],
+    },
+  ];
+
+  const fallbackText = '📅 Readthrough date needed for ' + showName + ' — please set it in the Show Setup sheet or use the date picker.';
+
+  return sendSlack(config, '', channel, {
+    attachments: [{ color: '#6d28d9', fallback: fallbackText, blocks: blocks }],
+  });
 }
 
 // ─── Test Function ────────────────────────────────────────────────────────────
