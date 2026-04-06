@@ -6,8 +6,9 @@ Automated reminder system for Kitchener-Waterloo Little Theatre production teams
 
 - **Computes all production deadlines** from just 4 anchor dates using the timing rules from the KWLT Mainstage Runbook
 - **Sends automated reminders** via Slack (per-show channels) and email (to show email addresses) as deadlines approach
-- **One-click "Mark Done"** — production team members can mark tasks complete directly from Slack buttons or email links
+- **One-click "Mark Done"** — production team members can mark tasks complete directly from Slack buttons (with undo) or email links
 - **Escalates overdue tasks** to the Show Support Committee's Slack channel
+- **Prompts for the readthrough date** — after auditions, posts a Slack date picker to the show channel daily until the date is set; notifies Membership Director and Show Support when set or changed
 - **Provides a dashboard** (Season Overview) showing upcoming deadlines across all concurrent shows, refreshed daily
 - **Sends a reminder summary** to the Show Support Slack channel when reminders go out
 - **Secrets stored securely** — tokens and sensitive config are in Script Properties, not visible in the spreadsheet
@@ -38,15 +39,19 @@ Automated reminder system for Kitchener-Waterloo Little Theatre production teams
 │  Daily trigger (9 AM) → checks all active show tabs →        │
 │    → sends Slack messages with ✅ Mark Done buttons          │
 │    → sends HTML emails with ✅ Mark Done links               │
+│    → prompts for readthrough date if missing (after auditions)│
 │    → posts reminder summary to show support Slack channel     │
 │    → escalates overdue tasks to show support Slack channel   │
 │    → refreshes Season Overview                               │
 │    → logs everything to Send Log                             │
 │                                                              │
-│  Web App endpoint → handles "Mark Done" clicks from          │
-│    → Slack interactive buttons (POST)                        │
+│  Web App endpoint → handles interactions from                │
+│    → Slack buttons: Mark Done, Undo, date pickers (POST)     │
 │    → Email link clicks (GET)                                 │
-│    → Updates task status to Done in the spreadsheet          │
+│    → Updates task status / dates in the spreadsheet           │
+│                                                              │
+│  onEdit trigger → detects readthrough date changes in         │
+│    Show Setup → recomputes tasks, notifies stakeholders       │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -107,14 +112,16 @@ clasp push
    - Go to [api.slack.com/apps](https://api.slack.com/apps) → create or select your KWLT app
    - **OAuth & Permissions** → add Bot Token Scope: `chat:write` → Install/reinstall to workspace
    - Copy the **Bot User OAuth Token** (starts with `xoxb-`)
-   - **Interactivity & Shortcuts** (optional) → toggle On → set Request URL to your Web App URL
+   - **Interactivity & Shortcuts** → toggle On → set Request URL to your Web App URL
+     _(required for Mark Done buttons, Undo, and readthrough date picker)_
    - Invite the bot to each show's Slack channel: `/invite @YourAppName`
 
 4. **Configure secrets** via 🎭 KWLT Automation → 🔐 Manage Secrets:
    - **Slack Bot Token**: the `xoxb-` token from step 3
    - **Web App URL**: the URL from step 2
    - **Show Support Channel**: e.g., `#comm-show-support-private`
-   - **Show Support Email** and **Escalation Email**: optional (digest and escalations go to Slack by default)
+   - **Membership Email**: e.g., `membership@kwlt.org` (receives readthrough date notifications)
+   - **Show Support Email**: optional (digest and escalations go to Slack by default)
 
 5. **Configure non-sensitive settings** in the ⚙️ Config sheet:
    - **Slack Default Channel**: fallback channel (e.g., `#show-reminders`)
@@ -135,7 +142,7 @@ clasp push
    - **Resources Folder URL**: link to the show's Google Drive resources folder
    - **Required dates** (green headers, marked `*`): Audition Start, Build/Possession, Opening Night, Closing Night
    - **Auto-derived dates** (blue headers, marked `(auto)`): leave blank or override — Audition End (+2 days), Tech Weekend Start (opening night -6 days), Tech Weekend End (+1 day)
-   - **Optional dates** (gray headers, marked `(opt)`): Readthrough — related tasks are skipped if left blank
+   - **Optional dates** (gray headers, marked `(opt)`): Readthrough — if left blank, the system will prompt the show's Slack channel with a date picker daily after auditions close; dependent tasks are activated when the date is set
 3. Click **🎭 KWLT Automation → 📋 Generate Show Task Tabs**
    - Confirms the list of shows, then creates all timeline tabs at once
 4. **Review the dates** in each 🎬 tab — adjust any that need tweaking
@@ -145,7 +152,7 @@ clasp push
 
 | What | How |
 |------|-----|
-| Mark a task done | Click ✅ in Slack or the email button, OR change Status to "Done" in the sheet |
+| Mark a task done | Click ✅ in Slack (↩️ Undo button appears in confirmation), OR change Status to "Done" in the sheet |
 | Skip a task | Change Status to "Skipped" |
 | Override a deadline | Edit the date in the "Computed Deadline" column |
 | Change notification channel | Change "Notify Via" to slack, email, both, or none |
@@ -211,7 +218,7 @@ src/
 | Emails not sending | The script owner needs Gmail permissions. Re-authorize by running any function from the script editor. |
 | Wrong dates computed | Check the 4 required anchor dates in 🎭 Show Setup. Override specific dates in the show's tab. |
 | "Mark Done" links not working | Check 🔐 Manage Secrets → Web App URL. Redeploy the web app if needed (Deploy → Manage deployments → update to latest version). |
-| Slack buttons not responding | Set up Interactivity in your Slack app settings, pointing to the Web App URL. Without it, buttons open in the browser instead. |
+| Slack buttons not responding | Set up Interactivity in your Slack app settings, pointing to the Web App URL. This is required for Mark Done, Undo, and the readthrough date picker. |
 | "Too many reminders" | Change task Notify Via to "none" or Status to "Skipped" for irrelevant tasks. |
 | Permission errors | Run any function from the Apps Script editor to trigger re-authorization. |
 
