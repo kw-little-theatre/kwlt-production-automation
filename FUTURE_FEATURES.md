@@ -50,3 +50,44 @@ For dates that aren't known at season setup (e.g., readthrough date, first produ
 
 ### Form-based debrief scheduling
 After closing, automatically send a scheduling form (e.g., Doodle or Google Forms link) to the production team for the post-show debrief meeting, rather than requiring someone to do it manually.
+
+---
+
+## Longer-term: Standalone KWLT Slack App
+
+### Vision
+Separate the Slack bot from the Apps Script spreadsheet into a standalone app that becomes the general-purpose hub for the KWLT ecosystem. The spreadsheet stays as the data layer and reminder engine; the Slack app becomes the interface for everything.
+
+### Architecture
+
+**Google Apps Script + Spreadsheet** (current system, unchanged)
+- Owns show data: timelines, dates, task statuses, config
+- Runs the daily reminder engine on a cron
+- Exposes a simple API (web app endpoints) for reading/writing show data
+
+**Standalone Slack App** (new — "KWLT Bot")
+- Single Slack identity for all KWLT automation
+- Receives all interactions (button clicks, date pickers, messages, @mentions)
+- Routes actions: task management → spreadsheet API; questions → LLM
+- Hosts LLM integration with KWLT docs as knowledge base
+- Extensible to future integrations (Eventbrite, Google Drive, membership DB, etc.)
+
+### LLM-powered Q&A
+- Production teams can @ the bot or DM it with questions
+- Answers from KWLT-specific knowledge: policy manual, production handbook, show timelines
+- Examples: "When is our poster deadline?", "What's the strike policy?", "Who's responsible for the press release?"
+- Knowledge base: handbook + policy manual loaded as context, show-specific data queried from the spreadsheet on demand
+
+### Suggested tech stack
+- **Framework**: Bolt for JavaScript or Python (Slack's official SDK)
+- **Hosting**: Cloudflare Workers, Google Cloud Run, Railway, or Fly.io (all have free/cheap tiers)
+- **LLM**: Gemini (free tier, stays in Google ecosystem) or OpenAI
+- **Knowledge base**: Markdown files from this repo (handbook, policy manual) loaded at startup; show data via Sheets API or existing web app endpoints
+
+### Incremental migration path
+1. **Phase 1 — Proxy**: Deploy standalone app, proxy all interactions to existing Apps Script web app. Everything works as-is, just routed through the new app.
+2. **Phase 2 — LLM**: Add conversational Q&A. Load handbook and policy manual as context. Bot can answer questions.
+3. **Phase 3 — Message ownership**: Move Slack message-sending from Apps Script to the Slack app (spreadsheet triggers via webhook). Bot controls all its own messages.
+4. **Phase 4 — Expand**: Add integrations (Eventbrite, Drive, membership database, onboarding flows, etc.)
+
+**Key principle**: The spreadsheet automation never breaks — it keeps running independently throughout all phases.
