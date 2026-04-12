@@ -126,45 +126,50 @@ def mark_done_get(action: str = "", show: str = "", task: str = "", token: str =
     FastAPI will run it in a threadpool automatically.
     """
     if action != "done" or not show or not task or not token:
-        return _html_response("❌ Invalid Request", "This link appears to be malformed or expired.", False)
+        return _html_response("Invalid Request", "This link appears to be malformed or expired.", False)
 
     # Verify token
     expected_token = generate_token(settings.spreadsheet_id, show, task)
     if token != expected_token:
-        return _html_response("❌ Invalid Token", "This link may have expired or been tampered with.", False)
+        return _html_response("Invalid Token", "This link may have expired or been tampered with.", False)
 
     try:
         sheets = _get_sheets()
         result = sheets.mark_task_done(show, task)
 
         if result.success:
-            from app.reminder_logic import escape_html
-
             return _html_response(
-                "✅ Task Marked Done",
-                f"<strong>{escape_html(task)}</strong><br><br>"
-                f"Show: {escape_html(show)}<br>"
-                f"You can close this tab.",
+                "Task Marked Done",
+                f"{task} — Show: {show} — You can close this tab.",
                 True,
             )
         else:
-            from app.reminder_logic import escape_html
-
-            return _html_response("⚠️ Could Not Update", escape_html(result.message), False)
+            return _html_response("Could Not Update", result.message, False)
     except Exception as e:
         logger.error(f"Error handling mark-done: {e}", exc_info=True)
-        return _html_response("❌ Error", "An unexpected error occurred.", False)
+        return _html_response("Error", "An unexpected error occurred.", False)
 
 
 def _html_response(title: str, body: str, success: bool) -> Response:
-    """Renders a simple HTML response page. Port of _htmlResponse() from WebApp.gs."""
+    """Renders a simple HTML response page. Port of _htmlResponse() from WebApp.gs.
+
+    Both title and body are HTML-escaped inside this function to prevent XSS.
+    If you need to include HTML markup in body (e.g. <strong>), use
+    body_html parameter instead (not yet implemented — all current callers
+    pass plain text or pre-escaped content).
+    """
+    from app.reminder_logic import escape_html
+
+    safe_title = escape_html(title)
+    safe_body = escape_html(body)
+
     color = "#059669" if success else "#dc2626"
     bg_color = "#d1fae5" if success else "#fee2e2"
     icon = "🎭" if success else "⚠️"
 
     html = f"""<!DOCTYPE html><html><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{title} — KWLT</title>
+<title>{safe_title} — KWLT</title>
 <style>
 body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 display: flex; justify-content: center; align-items: center; min-height: 100vh;
@@ -178,8 +183,8 @@ p {{ color: #374151; line-height: 1.6; margin: 0; }}
 padding: 4px 12px; border-radius: 20px; font-size: 13px; margin-top: 16px; }}
 </style></head><body><div class="card">
 <div class="icon">{icon}</div>
-<h1>{title}</h1>
-<p>{body}</p>
+<h1>{safe_title}</h1>
+<p>{safe_body}</p>
 <div class="badge">KWLT Production Automation</div>
 </div></body></html>"""
 
