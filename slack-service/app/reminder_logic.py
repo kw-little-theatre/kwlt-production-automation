@@ -228,17 +228,6 @@ def compute_date(anchors: dict, anchor_ref: str, offset_days: int) -> Optional[d
 # ─── String Utilities ──────────────────────────────────────────────────────────
 
 
-def escape_html(s: str) -> str:
-    """Port of _escapeHtml() from WebApp.gs."""
-    return (
-        str(s)
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
-    )
-
-
 def strip_emoji(s: str) -> str:
     """
     Strips emoji and other non-ASCII symbol characters from a string.
