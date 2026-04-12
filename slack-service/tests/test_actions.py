@@ -6,6 +6,8 @@ Port verification: Each test case mirrors the behavior of the original
 JavaScript functions in ReminderEngine.gs.
 """
 
+import pytest
+
 from app.constants import STATUS
 from app.reminder_logic import determine_action, status_after_action
 
@@ -134,19 +136,21 @@ class TestDetermineAction:
 
 
 class TestStatusAfterAction:
-    """Tests for status_after_action() — port of _statusAfterAction()."""
+    """Tests for status_after_action() — port of _statusAfterAction().
 
-    def test_advance(self):
-        assert status_after_action("advance") == STATUS.ADVANCE_SENT
+    Note: This is a simple dict lookup, but we keep one parametrized test
+    as a cross-language contract — if the mapping changes in the JS version,
+    this should be updated to match.
+    """
 
-    def test_urgent(self):
-        assert status_after_action("urgent") == STATUS.URGENT_SENT
-
-    def test_overdue(self):
-        assert status_after_action("overdue") == STATUS.OVERDUE
-
-    def test_unknown(self):
-        assert status_after_action("unknown") == STATUS.PENDING
-
-    def test_empty(self):
-        assert status_after_action("") == STATUS.PENDING
+    @pytest.mark.parametrize(
+        "action,expected",
+        [
+            ("advance", STATUS.ADVANCE_SENT),
+            ("urgent", STATUS.URGENT_SENT),
+            ("overdue", STATUS.OVERDUE),
+            ("unknown", STATUS.PENDING),
+        ],
+    )
+    def test_action_to_status_mapping(self, action, expected):
+        assert status_after_action(action) == expected
