@@ -9,6 +9,7 @@ passed through the reminder engine.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -43,9 +44,9 @@ class ActiveShow(BaseModel):
     slack_channel: str = ""
     show_email: str = ""
     resources_url: str = ""
-    audition_end: datetime | None = None
-    readthrough_date: datetime | None = None
-    readthrough_prompt_last_sent: datetime | None = None
+    audition_end: Optional[datetime] = None
+    readthrough_date: Optional[datetime] = None
+    readthrough_prompt_last_sent: Optional[datetime] = None
     setup_row_index: int = 0  # 0-based data row index
 
 

@@ -13,6 +13,8 @@ import re
 from datetime import date, datetime, timedelta
 from urllib.parse import quote
 
+from typing import Optional
+
 from app.constants import STATUS
 from app.task_templates import get_task_template_data
 
@@ -26,7 +28,7 @@ def determine_action(
     advance_days: int = 7,
     urgent_days: int = 1,
     overdue_days: int = 2,
-) -> str | None:
+) -> Optional[str]:
     """
     Decides what reminder action (if any) to take.
     Port of _determineAction() from ReminderEngine.gs.
@@ -157,7 +159,7 @@ def is_send_on_date_task(task_name: str) -> bool:
     return False
 
 
-def get_custom_email_for_task(task_name: str) -> dict | None:
+def get_custom_email_for_task(task_name: str) -> Optional[dict]:
     """
     Looks up a task's custom email template.
     Port of _getCustomEmailForTask() from ReminderEngine.gs.
@@ -170,7 +172,7 @@ def get_custom_email_for_task(task_name: str) -> dict | None:
     return None
 
 
-def lookup_original_notify_via(task_name: str) -> str | None:
+def lookup_original_notify_via(task_name: str) -> Optional[str]:
     """
     Looks up the original notifyVia value for a task from the template data.
     Port of _lookupOriginalNotifyVia() from WebApp.gs.
@@ -184,7 +186,7 @@ def lookup_original_notify_via(task_name: str) -> str | None:
 # ─── Date Utilities ────────────────────────────────────────────────────────────
 
 
-def strip_time(d: datetime | date | None) -> date | None:
+def strip_time(d) -> Optional[date]:
     """
     Strips the time portion from a datetime.
     Port of _stripTime() from ReminderEngine.gs.
@@ -208,7 +210,7 @@ def days_between(from_date: date | datetime, to_date: date | datetime) -> int:
     return (to_d - from_d).days
 
 
-def compute_date(anchors: dict[str, date], anchor_ref: str, offset_days: int) -> date | None:
+def compute_date(anchors: dict, anchor_ref: str, offset_days: int) -> Optional[date]:
     """
     Computes a deadline date from an anchor + offset.
     Port of _computeDate() from ShowTimeline.gs.
@@ -291,6 +293,6 @@ def build_mark_done_url(web_app_url: str, spreadsheet_id: str, show_name: str, t
 # ─── Recipient Resolution ─────────────────────────────────────────────────────
 
 
-def resolve_recipient_email(context: dict) -> str | None:
+def resolve_recipient_email(context: dict) -> Optional[str]:
     """Port of _resolveRecipientEmail() from ReminderEngine.gs."""
     return context.get("show_email") or context.get("showEmail") or None
