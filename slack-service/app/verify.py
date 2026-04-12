@@ -40,11 +40,11 @@ def verify_slack_signature(
     except (ValueError, TypeError):
         return False
 
-    # Compute expected signature
-    sig_basestring = f"v0:{timestamp}:{body.decode('utf-8')}"
+    # Compute expected signature over the exact raw request bytes
+    sig_basestring = b"v0:" + timestamp.encode("utf-8") + b":" + body
     computed = "v0=" + hmac.new(
         signing_secret.encode("utf-8"),
-        sig_basestring.encode("utf-8"),
+        sig_basestring,
         hashlib.sha256,
     ).hexdigest()
 

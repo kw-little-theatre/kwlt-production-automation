@@ -21,6 +21,7 @@ from app.constants import (
     COL,
     SHEET_SEND_LOG,
     SHOW_TAB_PREFIX,
+    SHOW_TIMELINE_COLS,
     STATUS,
 )
 from app.models import MarkTaskResult
@@ -52,6 +53,14 @@ class SheetRepository:
         except gspread.WorksheetNotFound:
             return None
 
+    @staticmethod
+    def _pad_row(row: list) -> list:
+        """Pad a row to SHOW_TIMELINE_COLS to avoid IndexError on short rows.
+        gspread's get_all_values() omits trailing empty cells."""
+        if len(row) >= SHOW_TIMELINE_COLS:
+            return row
+        return row + [""] * (SHOW_TIMELINE_COLS - len(row))
+
     # ─── Task Operations ───────────────────────────────────────────────
 
     def mark_task_done(self, show_name: str, task_text: str) -> MarkTaskResult:
@@ -68,7 +77,8 @@ class SheetRepository:
 
         data = sheet.get_all_values()
 
-        for row_idx, row in enumerate(data[1:], start=2):  # 1-indexed, skip header
+        for row_idx, raw_row in enumerate(data[1:], start=2):  # 1-indexed, skip header
+            row = self._pad_row(raw_row)
             current_task = str(row[COL.TASK])
             current_status = row[COL.STATUS]
 
@@ -78,7 +88,7 @@ class SheetRepository:
                     return MarkTaskResult(success=True, message="Task was already marked done.")
 
                 now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                existing_notes = row[COL.NOTES] if len(row) > COL.NOTES else ""
+                existing_notes = row[COL.NOTES]
                 new_notes = (
                     (existing_notes + "\n" if existing_notes else "")
                     + f"Marked done via Slack at {now_str}"
@@ -117,7 +127,8 @@ class SheetRepository:
 
         data = sheet.get_all_values()
 
-        for row_idx, row in enumerate(data[1:], start=2):
+        for row_idx, raw_row in enumerate(data[1:], start=2):
+            row = self._pad_row(raw_row)
             current_task = str(row[COL.TASK])
             current_status = row[COL.STATUS]
 
@@ -129,7 +140,7 @@ class SheetRepository:
                     )
 
                 now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                existing_notes = row[COL.NOTES] if len(row) > COL.NOTES else ""
+                existing_notes = row[COL.NOTES]
                 new_notes = (
                     (existing_notes + "\n" if existing_notes else "")
                     + f"Undone via Slack at {now_str}"

@@ -47,12 +47,14 @@ def handle_block_action(
             _handle_mark_done(action_id, user_name, response_url, channel, sheets, slack)
         except ValueError as e:
             logger.error(f"Malformed mark_done action_id: {e}")
+            slack.send_response_url(response_url, "⚠️ Something went wrong parsing that action.", ephemeral=True)
 
     elif action_id.startswith("mark_undone:"):
         try:
             _handle_mark_undone(action_id, user_name, response_url, sheets, slack)
         except ValueError as e:
             logger.error(f"Malformed mark_undone action_id: {e}")
+            slack.send_response_url(response_url, "⚠️ Something went wrong parsing that action.", ephemeral=True)
 
     elif action_id.startswith("readthrough_date:"):
         selected_date = payload.get("actions", [{}])[0].get("selected_date")

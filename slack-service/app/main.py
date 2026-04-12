@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import logging
 
-from fastapi import FastAPI, Request, Response
+from fastapi import BackgroundTasks, FastAPI, Request, Response
 
 from app.config import settings
 from app.handlers import handle_block_action
@@ -61,14 +61,14 @@ async def health_check():
 
 
 @app.post("/slack/interactions")
-async def slack_interactions(request: Request):
+async def slack_interactions(request: Request, background_tasks: BackgroundTasks):
     """
     Handles Slack interactive component callbacks (buttons, date pickers).
     Replaces doPost() from WebApp.gs.
 
     Slack sends a URL-encoded body with a 'payload' JSON field.
     We must respond with 200 within 3 seconds — all heavy work
-    (sheet writes, follow-up messages) happens after the response.
+    (sheet writes, follow-up messages) runs in a background task.
     """
     body = await request.body()
 
@@ -94,11 +94,15 @@ async def slack_interactions(request: Request):
     action = payload.get("actions", [{}])[0]
     action_id = action.get("action_id", "")
 
-    # Respond immediately to Slack (3-second deadline)
-    # Then process the interaction
-    # NOTE: In production with heavy sheet writes, consider using
-    # BackgroundTasks or a task queue. For now, synchronous is fine
-    # since sheet operations are fast (~200-500ms).
+    # Return 200 immediately to meet Slack's 3-second deadline.
+    # Sheet writes and follow-up messages run in a background task.
+    background_tasks.add_task(_process_interaction, action_id, payload)
+
+    return Response(status_code=200, content="")
+
+
+def _process_interaction(action_id: str, payload: dict) -> None:
+    """Background task that processes a Slack interaction after the 200 response."""
     try:
         sheets = _get_sheets()
         slack = _get_slack()
@@ -106,19 +110,20 @@ async def slack_interactions(request: Request):
     except Exception as e:
         logger.error(f"Error handling interaction: {e}", exc_info=True)
 
-    return Response(status_code=200, content="")
-
 
 # ─── Email Mark Done Handler ─────────────────────────────────────────────────
 
 
 @app.get("/mark-done")
-async def mark_done_get(action: str = "", show: str = "", task: str = "", token: str = ""):
+def mark_done_get(action: str = "", show: str = "", task: str = "", token: str = ""):
     """
     Handles Mark Done links from emails.
     Replaces doGet() from WebApp.gs.
 
     URL format: /mark-done?action=done&show=ShowName&task=TaskText&token=abc123
+
+    This is a sync endpoint (not async) because gspread uses blocking I/O.
+    FastAPI will run it in a threadpool automatically.
     """
     if action != "done" or not show or not task or not token:
         return _html_response("❌ Invalid Request", "This link appears to be malformed or expired.", False)
@@ -143,7 +148,9 @@ async def mark_done_get(action: str = "", show: str = "", task: str = "", token:
                 True,
             )
         else:
-            return _html_response("⚠️ Could Not Update", result.message, False)
+            from app.reminder_logic import escape_html
+
+            return _html_response("⚠️ Could Not Update", escape_html(result.message), False)
     except Exception as e:
         logger.error(f"Error handling mark-done: {e}", exc_info=True)
         return _html_response("❌ Error", "An unexpected error occurred.", False)

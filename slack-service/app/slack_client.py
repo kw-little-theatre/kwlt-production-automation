@@ -75,6 +75,11 @@ class SlackClient:
         if not response_url:
             return
 
+        # Validate the URL is a legitimate Slack endpoint (SSRF protection)
+        if not response_url.startswith("https://hooks.slack.com/"):
+            logger.warning(f"Rejecting non-Slack response_url: {response_url}")
+            return
+
         import httpx
 
         try:
