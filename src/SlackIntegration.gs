@@ -103,17 +103,16 @@ function sendSlackBlockMessageWithButton(config, context, action) {
     },
   ];
 
-  if (context.markDoneUrl) {
-    primaryBlocks.push({
-      type: 'actions',
-      elements: [{
-        type: 'button',
-        text: { type: 'plain_text', text: '✅ Mark Done', emoji: true },
-        style: 'primary',
-        action_id: 'mark_done:' + encodeURIComponent(context.showName) + ':' + encodeURIComponent(context.task),
-      }],
-    });
-  }
+  // Mark Done button always rendered — it uses Slack Interactivity (action_id), not WEB_APP_URL
+  primaryBlocks.push({
+    type: 'actions',
+    elements: [{
+      type: 'button',
+      text: { type: 'plain_text', text: '✅ Mark Done', emoji: true },
+      style: 'primary',
+      action_id: 'mark_done:' + encodeURIComponent(context.showName) + ':' + encodeURIComponent(context.task),
+    }],
+  });
 
   // Fallback text shown in notifications / previews (no show name)
   const fallbackText = emoji + ' ' + label + ': ' + context.task + ' (' + context.responsible + ') — due ' + context.deadline;

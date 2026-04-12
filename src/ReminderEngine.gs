@@ -184,22 +184,11 @@ function _executeAction(action, context, config) {
 
   // Slack reminder to show channel (skip for overdue — escalation handles it)
   if (action !== 'overdue' && (context.notifyVia === 'slack' || context.notifyVia === 'both') && config.sendSlack) {
-    // Try rich block message with "Mark Done" button first, fall back to plain text
-    if (config.webAppUrl) {
-      const result = sendSlackBlockMessageWithButton(config, context, action);
-      const ok = result && result.ok;
-      _logSend(config.ss, context, 'slack', action, ok, ok ? '' : (result && result.error || 'Unknown error'));
-      if (ok) anySuccess = true;
-    } else {
-      const slackTemplate = _getTemplate(config.ss, _slackTemplateName(action));
-      if (slackTemplate) {
-        const message = _renderTemplate(slackTemplate, context);
-        const result = sendSlack(config, message, context.slackChannel);
-        const ok = result && result.ok;
-        _logSend(config.ss, context, 'slack', action, ok, ok ? '' : (result && result.error || 'Unknown error'));
-        if (ok) anySuccess = true;
-      }
-    }
+    // Always use rich block message with "Mark Done" button (buttons use Slack Interactivity, not WEB_APP_URL)
+    const result = sendSlackBlockMessageWithButton(config, context, action);
+    const ok = result && result.ok;
+    _logSend(config.ss, context, 'slack', action, ok, ok ? '' : (result && result.error || 'Unknown error'));
+    if (ok) anySuccess = true;
   }
 
   // Email to show (skip for overdue — escalation goes to Show Support Slack only)
@@ -240,17 +229,16 @@ function _executeAction(action, context, config) {
     const blocks = [
       { type: 'section', text: { type: 'mrkdwn', text: escText } },
     ];
-    if (context.markDoneUrl) {
-      blocks.push({
-        type: 'actions',
-        elements: [{
-          type: 'button',
-          text: { type: 'plain_text', text: '✅ Mark Done', emoji: true },
-          style: 'primary',
-          action_id: 'mark_done:' + encodeURIComponent(context.showName) + ':' + encodeURIComponent(context.task),
-        }],
-      });
-    }
+    // Mark Done button always rendered — it uses Slack Interactivity (action_id), not WEB_APP_URL
+    blocks.push({
+      type: 'actions',
+      elements: [{
+        type: 'button',
+        text: { type: 'plain_text', text: '✅ Mark Done', emoji: true },
+        style: 'primary',
+        action_id: 'mark_done:' + encodeURIComponent(context.showName) + ':' + encodeURIComponent(context.task),
+      }],
+    });
 
     const escResult = sendSlack(config, '', config.showSupportChannel, {
       attachments: [{ color: '#dc2626', blocks: blocks }],
