@@ -50,13 +50,17 @@ class TestTokenGeneration:
         Cross-language contract: pin a known hash so that if either the
         Python or JavaScript implementation changes, this test fails.
 
-        To regenerate: run in Apps Script console:
-          _generateToken('test-spreadsheet-id', 'Hamlet', 'Book audition days')
+        The Python port takes (spreadsheet_id, show_name, task_text) explicitly,
+        while the Apps Script version reads the spreadsheet ID internally via
+        SpreadsheetApp.getActiveSpreadsheet().getId(). The raw input is the same:
+          raw = spreadsheet_id + '|' + show_name + '|' + task_text
+
+        To regenerate this pinned value:
+          python -c "from app.reminder_logic import generate_token; print(generate_token('test-spreadsheet-id', 'Hamlet', 'Book audition days'))"
         """
         actual = generate_token("test-spreadsheet-id", "Hamlet", "Book audition days")
-        # Pinned value — if this fails, the hashing algorithm has diverged
-        # from the JavaScript version. Regenerate by running in Apps Script:
-        #   _generateToken('test-spreadsheet-id', 'Hamlet', 'Book audition days')
+        # Pinned value — if this fails, the hashing algorithm has diverged.
+        # Regenerate with the python command in the docstring above.
         assert actual == "2a57addfc0e7"
 
 
