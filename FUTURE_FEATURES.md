@@ -55,7 +55,32 @@ After closing, automatically send a scheduling form (e.g., Doodle or Google Form
 
 ## Longer-term: Standalone KWLT Slack App
 
-### Vision
+> **Status: IN PROGRESS** — The standalone Python Slack service (`slack-service/`) has been built with FastAPI. Phases 0-2 are complete. See next steps below.
+
+### Current progress
+
+- ✅ **Phase 0 — Test Safety Net**: Pure functions ported to Python with 74 unit + contract tests and golden files
+- ✅ **Phase 1 — Scaffolding**: FastAPI project structure, Dockerfile, CI workflow, Pydantic models
+- ✅ **Phase 2 — Port Slack Interactions**: `/slack/interactions` and `/mark-done` endpoints, SheetRepository (gspread), Slack client wrapper, signature verification. 97 tests passing.
+
+### Next steps (pick up here)
+
+1. **Manual testing** — verify the service works end-to-end:
+   - Start locally: `cd slack-service && source .venv/bin/activate && uvicorn app.main:app --port 8080 --reload`
+   - Test health: `http://localhost:8080/health`
+   - Test Mark Done email link in browser (generate a valid token with a real show/task from the spreadsheet)
+   - Test Slack interactions: install ngrok (`brew install ngrok`), run `ngrok http 8080`, temporarily point Slack Interactivity URL to the ngrok URL + `/slack/interactions`, add `SLACK_SIGNING_SECRET` and `SLACK_BOT_TOKEN` to `.env`, click a Mark Done button in Slack
+   - **Remember to restore the Slack Interactivity URL to the Apps Script web app URL when done testing**
+
+2. **Phase 3 — Port Outbound Slack Messaging**: Port `sendSlack()`, block message builders, daily digest to Python. Have Apps Script daily trigger call the Python service for Slack sends (hybrid model). Email stays in Apps Script.
+
+3. **Phase 4 — RAG Q&A**: Chunk + embed Production Handbook and Policy Manual, ChromaDB vector store, `POST /slack/events` for `app_mention` handler, GPT-4o-mini for answers, threaded Slack responses with source citations.
+
+4. **Phase 5 — Eval Harness**: 30-50 Q&A test cases, eval dimensions (retrieval recall, correctness, faithfulness, relevance), GPT-4o as judge, CI integration.
+
+5. **Deploy to Cloud Run**: `gcloud run deploy`, point Slack Interactivity URL permanently to Cloud Run URL.
+
+### Architecture decisions made
 Separate the Slack bot from the Apps Script spreadsheet into a standalone app that becomes the general-purpose hub for the KWLT ecosystem. The spreadsheet stays as the data layer and reminder engine; the Slack app becomes the interface for everything.
 
 ### Architecture
