@@ -154,14 +154,13 @@ def _html_response(title: str, body: str, success: bool) -> Response:
     """Renders a simple HTML response page. Port of _htmlResponse() from WebApp.gs.
 
     Both title and body are HTML-escaped inside this function to prevent XSS.
-    If you need to include HTML markup in body (e.g. <strong>), use
-    body_html parameter instead (not yet implemented — all current callers
-    pass plain text or pre-escaped content).
+    Uses html.escape from the standard library (recognized by CodeQL as a
+    safe sanitizer).
     """
-    from app.reminder_logic import escape_html
+    import html
 
-    safe_title = escape_html(title)
-    safe_body = escape_html(body)
+    safe_title = html.escape(title)
+    safe_body = html.escape(body)
 
     color = "#059669" if success else "#dc2626"
     bg_color = "#d1fae5" if success else "#fee2e2"
