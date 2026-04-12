@@ -4,6 +4,8 @@ node_modules/
 # clasp
 .clasprc.json
 .clasp.json
+.clasp-prod.json
+.clasp-test.json
 
 # OS files
 .DS_Store

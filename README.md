@@ -96,6 +96,75 @@ clasp push
 # Open the Sheet and reload — the menu should appear
 ```
 
+## Test Environment
+
+The app supports a fully isolated test environment using a **separate Google Sheet + Apps Script project**. Both environments share the same `src/` code — the isolation is in the data (sheet contents) and config (Script Properties). A shell script (`env.sh`) switches which project `clasp push` targets.
+
+### One-time test setup
+
+1. **Create a test spreadsheet**:
+   - In Google Sheets, create a new spreadsheet (e.g., "KWLT Production Automation — TEST")
+   - Open Extensions → Apps Script → ⚙️ Project Settings → copy the **Script ID**
+
+2. **Configure the test clasp target**:
+   - Open `.clasp-test.json` and replace `PASTE_YOUR_TEST_SCRIPT_ID_HERE` with the Script ID from step 1
+
+3. **Push code and run Initial Setup**:
+   ```bash
+   ./env.sh test
+   clasp push
+   ```
+   - Open the test spreadsheet → reload → 🎭 KWLT Automation → **Initial Setup**
+
+4. **Create a test Slack channel**:
+   - Create `#automation-test` (or similar) in the KWLT Slack workspace
+   - Invite the Slack bot: `/invite @YourAppName`
+
+5. **Deploy the test web app**:
+   - In the test Apps Script editor: Deploy → New deployment → Web app
+   - Copy the deployed URL
+
+6. **Set test secrets** via 🎭 KWLT Automation → 🔐 Manage Secrets:
+   - **Slack Bot Token**: same `xoxb-` token (same workspace) or a separate test bot's token
+   - **Web App URL**: the test web app URL from step 5
+   - **Show Support Channel**: the `#automation-test` channel ID
+   - **Show Support Email**: your personal email
+   - **Membership Email**: your personal email
+
+7. **Add test show data**:
+   - In the test spreadsheet's `🎭 Show Setup`, add a fake show (e.g., "Test Show") with near-future anchor dates
+   - Generate its timeline via the menu
+   - Set Active? = TRUE
+
+8. **Verify**: 🎭 KWLT Automation → 🧪 Test All Message Types — messages should arrive in `#automation-test` and your personal email, not production channels
+
+> **Slack interactivity note**: A Slack app can only have one Interactivity Request URL at a time. For testing Mark Done buttons and date pickers, temporarily change the URL in your Slack app settings to the test web app URL, or create a second Slack app for testing. Non-interactive features (reminders, digests) work without this.
+
+### Switching environments
+
+```bash
+./env.sh test      # 🧪 switch to test — safe to experiment
+./env.sh prod      # ⚠️  switch to production — clasp push updates the live system
+./env.sh status    # show which environment is currently active
+```
+
+Always run `./env.sh status` before `clasp push` to confirm which project you're targeting.
+
+### Development workflow
+
+```bash
+# 1. Develop & test
+./env.sh test
+# ... edit code in src/ ...
+clasp push
+# ... verify in test spreadsheet + #automation-test ...
+
+# 2. Deploy to production (same code)
+./env.sh prod
+clasp push
+# If doPost/doGet changed: Apps Script editor → Deploy → Manage deployments → New version
+```
+
 
 ## First-Time Setup (after deployment)
 
@@ -205,6 +274,10 @@ src/
 ├── WebApp.gs             — Web app endpoint for "Mark Done"
 ├── Secrets.gs            — Script Properties management for sensitive config
 └── TestUtils.gs          — Test functions for all message types
+
+env.sh                    — Switch clasp between prod/test environments
+.clasp-prod.json          — Clasp config for production (gitignored)
+.clasp-test.json          — Clasp config for test (gitignored)
 ```
 
 ## Troubleshooting
