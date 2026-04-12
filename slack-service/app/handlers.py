@@ -43,10 +43,16 @@ def handle_block_action(
     channel = payload.get("channel", {}).get("id", "")
 
     if action_id.startswith("mark_done:"):
-        _handle_mark_done(action_id, user_name, response_url, channel, sheets, slack)
+        try:
+            _handle_mark_done(action_id, user_name, response_url, channel, sheets, slack)
+        except ValueError as e:
+            logger.error(f"Malformed mark_done action_id: {e}")
 
     elif action_id.startswith("mark_undone:"):
-        _handle_mark_undone(action_id, user_name, response_url, sheets, slack)
+        try:
+            _handle_mark_undone(action_id, user_name, response_url, sheets, slack)
+        except ValueError as e:
+            logger.error(f"Malformed mark_undone action_id: {e}")
 
     elif action_id.startswith("readthrough_date:"):
         selected_date = payload.get("actions", [{}])[0].get("selected_date")
@@ -59,12 +65,15 @@ def handle_block_action(
         logger.warning(f"Unknown action_id: {action_id}")
 
 
-def _parse_action_id(action_id: str, prefix: str) -> tuple[str, str]:
+def _parse_action_id(action_id: str, prefix: str) -> tuple:
     """
     Parse an action_id like 'mark_done:ShowName:TaskText' into (show_name, task_text).
-    Handles URL-encoded values.
+    Handles URL-encoded values. Returns (show_name, task_text).
+    Raises ValueError if the action_id is malformed.
     """
     payload_str = action_id[len(prefix):]
+    if ":" not in payload_str:
+        raise ValueError(f"Malformed action_id: expected 'prefix:show:task', got '{action_id}'")
     separator_idx = payload_str.index(":")
     show_name = unquote(payload_str[:separator_idx])
     task_text = unquote(payload_str[separator_idx + 1 :])
@@ -192,5 +201,11 @@ def _handle_change_readthrough_date(
         slack.send_response_url(
             response_url,
             "📅 Date picker posted above — select the new readthrough date.",
+            ephemeral=True,
+        )
+    else:
+        slack.send_response_url(
+            response_url,
+            "📅 Please use the date picker in the channel to change the readthrough date.",
             ephemeral=True,
         )

@@ -65,6 +65,20 @@ class TestHandleMarkDone:
 
         sheets.mark_task_done.assert_called_once_with("My Show & More", "Task with spaces")
 
+    def test_mark_done_falls_back_to_response_url_without_channel(self):
+        """When channel is empty, should use response_url instead of send_message."""
+        sheets = MagicMock()
+        sheets.mark_task_done.return_value = MarkTaskResult(success=True, message="Done.")
+        slack = MagicMock()
+
+        payload = self._make_payload("mark_done:Show:Task")
+        payload["channel"] = {"id": ""}  # empty channel
+        handle_block_action("mark_done:Show:Task", payload, sheets, slack)
+
+        slack.send_message.assert_not_called()
+        slack.send_response_url.assert_called_once()
+        assert "marked done" in slack.send_response_url.call_args[0][1]
+
 
 class TestHandleMarkUndone:
     """Tests for the Undo (Mark Undone) button interaction handler."""
@@ -157,7 +171,7 @@ class TestHandleChangeReadthroughDate:
 
 
 class TestActionIdRouting:
-    """Tests that unknown action_ids don't crash."""
+    """Tests for action_id routing and edge cases."""
 
     def test_unknown_action_id_does_not_crash(self):
         sheets = MagicMock()
@@ -175,3 +189,19 @@ class TestActionIdRouting:
 
         sheets.mark_task_done.assert_not_called()
         sheets.mark_task_undone.assert_not_called()
+
+    def test_malformed_action_id_without_task_separator(self):
+        """action_id like 'mark_done:ShowNameOnly' (missing :task) should not crash."""
+        sheets = MagicMock()
+        slack = MagicMock()
+
+        payload = {
+            "type": "block_actions",
+            "actions": [{"action_id": "mark_done:ShowNameOnly"}],
+            "user": {"id": "U12345"},
+            "channel": {"id": "C12345"},
+            "response_url": "https://hooks.slack.com/test",
+        }
+        # Should not raise — the handler should catch the ValueError
+        handle_block_action("mark_done:ShowNameOnly", payload, sheets, slack)
+        sheets.mark_task_done.assert_not_called()

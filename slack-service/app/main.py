@@ -28,19 +28,27 @@ app = FastAPI(
     version="0.1.0",
 )
 
+# Cached singletons — avoids re-authenticating on every request
+_sheets_instance = None
+_slack_instance = None
+
 
 def _get_sheets():
-    """Lazy-initialize the SheetRepository (avoids import-time credential loading)."""
-    from app.sheets import SheetRepository
-
-    return SheetRepository(settings.google_sheets_credentials_file, settings.spreadsheet_id)
+    """Get or create the SheetRepository singleton."""
+    global _sheets_instance
+    if _sheets_instance is None:
+        from app.sheets import SheetRepository
+        _sheets_instance = SheetRepository(settings.google_sheets_credentials_file, settings.spreadsheet_id)
+    return _sheets_instance
 
 
 def _get_slack():
-    """Lazy-initialize the SlackClient."""
-    from app.slack_client import SlackClient
-
-    return SlackClient(settings.slack_bot_token)
+    """Get or create the SlackClient singleton."""
+    global _slack_instance
+    if _slack_instance is None:
+        from app.slack_client import SlackClient
+        _slack_instance = SlackClient(settings.slack_bot_token)
+    return _slack_instance
 
 
 @app.get("/health")
