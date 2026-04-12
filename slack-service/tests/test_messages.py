@@ -164,32 +164,6 @@ class TestActionIdFormat:
         assert len(action_id) <= 255
 
 
-# ─── Color Code Tests ────────────────────────────────────────────────────────
-
-
-class TestColorCodes:
-    """Verify attachment colors match the original Apps Script values."""
-
-    def test_advance_color(self):
-        result = build_reminder_blocks(REMINDER_CONTEXT, "advance")
-        assert result["attachments"][0]["color"] == "#2563eb"
-
-    def test_urgent_color(self):
-        result = build_reminder_blocks(REMINDER_CONTEXT, "urgent")
-        assert result["attachments"][0]["color"] == "#f59e0b"
-
-    def test_overdue_color(self):
-        result = build_reminder_blocks(REMINDER_CONTEXT, "overdue")
-        assert result["attachments"][0]["color"] == "#dc2626"
-
-    def test_readthrough_prompt_color(self):
-        result = build_readthrough_date_prompt("Show")
-        assert result["attachments"][0]["color"] == "#6d28d9"
-
-    def test_mark_done_color(self):
-        result = build_mark_done_confirmation("Show", "Task", "User")
-        assert result["attachments"][0]["color"] == "#059669"
-
-    def test_readthrough_confirmation_color(self):
-        result = build_readthrough_confirmation("Show", "2026-01-01", "User")
-        assert result["attachments"][0]["color"] == "#6d28d9"
+# Note: TestColorCodes removed — colors are already verified by the golden
+# file contract tests above. Duplicating them here adds maintenance burden
+# without catching additional bugs.

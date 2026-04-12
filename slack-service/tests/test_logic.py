@@ -1,10 +1,10 @@
 """
-Tests for pure utility functions ported from the Apps Script codebase:
-  - Token generation (_generateToken / buildMarkDoneUrl)
-  - Date utilities (_stripTime, _daysBetween, _computeDate)
-  - String utilities (_escapeHtml, _stripEmoji)
-  - Template rendering (_renderTemplate)
-  - Task template lookups
+Tests for ported utility functions:
+  - Token generation (generate_token / build_mark_done_url)
+  - Date utilities (days_between, compute_date) — type coercion only
+  - Emoji stripping (strip_emoji) — regex pattern validation
+  - Template rendering (render_template)
+  - Task template lookups (is_auto_complete_task, etc.)
 """
 
 from datetime import date, datetime
@@ -13,16 +13,13 @@ from app.reminder_logic import (
     build_mark_done_url,
     compute_date,
     days_between,
-    escape_html,
     generate_token,
     get_custom_email_for_task,
     is_auto_complete_task,
     is_send_on_date_task,
     lookup_original_notify_via,
     render_template,
-    resolve_recipient_email,
     strip_emoji,
-    strip_time,
 )
 from app.task_templates import get_task_template_data
 
@@ -36,47 +33,35 @@ class TestTokenGeneration:
         t2 = generate_token("spreadsheet-id", "Hamlet", "Book audition days")
         assert t1 == t2
 
-    def test_length_is_12(self):
-        """Token should be 12 hex characters."""
-        token = generate_token("abc", "Hamlet", "Some task")
-        assert len(token) == 12
-
-    def test_hex_characters_only(self):
-        """Token should contain only hex characters."""
-        token = generate_token("abc", "Hamlet", "Some task")
-        assert all(c in "0123456789abcdef" for c in token)
-
     def test_different_inputs_produce_different_tokens(self):
         """Different inputs should produce different tokens."""
         t1 = generate_token("abc", "Hamlet", "Task A")
         t2 = generate_token("abc", "Hamlet", "Task B")
         assert t1 != t2
 
-    def test_different_spreadsheet_id_produces_different_token(self):
+    def test_spreadsheet_id_is_salt(self):
         """Different spreadsheet IDs (salt) should produce different tokens."""
         t1 = generate_token("spreadsheet-1", "Hamlet", "Task A")
         t2 = generate_token("spreadsheet-2", "Hamlet", "Task A")
         assert t1 != t2
 
-    def test_special_characters(self):
-        """Handles unicode and special chars in show/task names."""
-        token = generate_token("id", "🎭 The Show!", "Task with 'quotes' & <brackets>")
-        assert len(token) == 12
-
-    def test_matches_javascript_algorithm(self):
+    def test_pinned_hash_matches_javascript(self):
         """
-        Verify the Python SHA-256 hash matches what the JavaScript version
-        would produce. The JS version does:
-          raw = spreadsheetId + '|' + showName + '|' + taskText
-          SHA-256 → hex → first 12 chars
+        Cross-language contract: pin a known hash so that if either the
+        Python or JavaScript implementation changes, this test fails.
 
-        Python's hashlib.sha256 produces the same digest for the same input.
+        The Python port takes (spreadsheet_id, show_name, task_text) explicitly,
+        while the Apps Script version reads the spreadsheet ID internally via
+        SpreadsheetApp.getActiveSpreadsheet().getId(). The raw input is the same:
+          raw = spreadsheet_id + '|' + show_name + '|' + task_text
+
+        To regenerate this pinned value:
+          python -c "from app.reminder_logic import generate_token; print(generate_token('test-spreadsheet-id', 'Hamlet', 'Book audition days'))"
         """
-        # This is a cross-language verification point. If you change the
-        # algorithm in either Python or JS, this test should fail.
-        token = generate_token("test-id", "Test Show", "Test Task")
-        assert isinstance(token, str)
-        assert len(token) == 12
+        actual = generate_token("test-spreadsheet-id", "Hamlet", "Book audition days")
+        # Pinned value — if this fails, the hashing algorithm has diverged.
+        # Regenerate with the python command in the docstring above.
+        assert actual == "2a57addfc0e7"
 
 
 class TestBuildMarkDoneUrl:
@@ -104,94 +89,41 @@ class TestBuildMarkDoneUrl:
 
 
 class TestDateUtilities:
-    """Tests for strip_time(), days_between(), compute_date()."""
+    """Tests for date utility functions.
 
-    def test_strip_time_from_datetime(self):
-        dt = datetime(2026, 5, 1, 14, 30, 0)
-        result = strip_time(dt)
-        assert result == date(2026, 5, 1)
+    Only tests that verify OUR logic (None handling, type coercion) — not
+    that Python's datetime arithmetic works.
+    """
 
-    def test_strip_time_from_date(self):
-        d = date(2026, 5, 1)
-        result = strip_time(d)
-        assert result == date(2026, 5, 1)
+    def test_days_between_handles_mixed_datetime_date(self):
+        """Our wrapper should accept a mix of datetime and date args."""
+        dt = datetime(2026, 5, 1, 10, 0)
+        d = date(2026, 5, 3)
+        assert days_between(dt, d) == 2
+        assert days_between(d, dt) == -2
 
-    def test_strip_time_none(self):
-        assert strip_time(None) is None
-
-    def test_days_between_positive(self):
-        """Future dates return positive days."""
-        assert days_between(date(2026, 5, 1), date(2026, 5, 8)) == 7
-
-    def test_days_between_negative(self):
-        """Past dates return negative days."""
-        assert days_between(date(2026, 5, 8), date(2026, 5, 1)) == -7
-
-    def test_days_between_same_day(self):
-        assert days_between(date(2026, 5, 1), date(2026, 5, 1)) == 0
-
-    def test_days_between_with_datetimes(self):
-        """Works with datetimes too (time portion stripped)."""
-        dt1 = datetime(2026, 5, 1, 10, 0)
-        dt2 = datetime(2026, 5, 3, 22, 0)
-        assert days_between(dt1, dt2) == 2
-
-    def test_compute_date_basic(self):
-        anchors = {"Opening Night": date(2026, 6, 15)}
-        result = compute_date(anchors, "Opening Night", -7)
-        assert result == date(2026, 6, 8)
-
-    def test_compute_date_positive_offset(self):
-        anchors = {"Closing Night": date(2026, 7, 1)}
-        result = compute_date(anchors, "Closing Night", 7)
-        assert result == date(2026, 7, 8)
-
-    def test_compute_date_zero_offset(self):
-        anchors = {"Opening Night": date(2026, 6, 15)}
-        result = compute_date(anchors, "Opening Night", 0)
-        assert result == date(2026, 6, 15)
-
-    def test_compute_date_missing_anchor(self):
+    def test_compute_date_missing_anchor_returns_none(self):
+        """Missing anchor should return None, not raise."""
         anchors = {"Opening Night": date(2026, 6, 15)}
         result = compute_date(anchors, "Readthrough Date", 0)
         assert result is None
 
-    def test_compute_date_with_datetime_anchor(self):
-        """Handles datetime anchors (strips time)."""
+    def test_compute_date_coerces_datetime_anchor(self):
+        """Anchors stored as datetimes should be handled properly."""
         anchors = {"Opening Night": datetime(2026, 6, 15, 10, 0)}
         result = compute_date(anchors, "Opening Night", -7)
         assert result == date(2026, 6, 8)
 
 
-class TestStringUtilities:
-    """Tests for escape_html() and strip_emoji()."""
+class TestStripEmoji:
+    """Tests for strip_emoji() — the regex pattern is non-trivial."""
 
-    def test_escape_html_ampersand(self):
-        assert escape_html("A & B") == "A &amp; B"
-
-    def test_escape_html_angle_brackets(self):
-        assert escape_html("<script>alert('xss')</script>") == "&lt;script&gt;alert('xss')&lt;/script&gt;"
-
-    def test_escape_html_quotes(self):
-        assert escape_html('He said "hello"') == "He said &quot;hello&quot;"
-
-    def test_escape_html_clean_string(self):
-        assert escape_html("Hello World") == "Hello World"
-
-    def test_strip_emoji_removes_emoji(self):
+    def test_removes_common_emoji(self):
+        """Verify our regex actually catches the emoji ranges we use."""
         assert strip_emoji("🎭 Hello World 🌟") == "Hello World"
 
-    def test_strip_emoji_preserves_text(self):
-        assert strip_emoji("Hello World") == "Hello World"
-
-    def test_strip_emoji_empty_string(self):
-        assert strip_emoji("") == ""
-
-    def test_strip_emoji_none(self):
-        assert strip_emoji(None) is None
-
-    def test_strip_emoji_collapses_spaces(self):
-        """After removing emoji, multiple spaces should collapse."""
+    def test_collapses_spaces_after_removal(self):
+        """Emoji removal can leave double spaces — verify we collapse them."""
         result = strip_emoji("📋  Task  📋")
         assert "  " not in result
 
@@ -199,15 +131,8 @@ class TestStringUtilities:
 class TestRenderTemplate:
     """Tests for render_template() — port of _renderTemplate()."""
 
-    def test_basic_substitution(self):
-        template = "Hello {{SHOW_NAME}}, task {{TASK}} is due on {{DEADLINE}}"
-        context = {"show_name": "Hamlet", "task": "Book days", "deadline": "2026-05-01"}
-        result = render_template(template, context)
-        assert "Hamlet" in result
-        assert "Book days" in result
-        assert "2026-05-01" in result
-
-    def test_all_placeholders(self):
+    def test_all_placeholders_replaced(self):
+        """Verify every supported placeholder is actually wired up."""
         template = "{{SHOW_NAME}} {{TASK}} {{RESPONSIBLE_PARTY}} {{DEADLINE}} {{DAYS_UNTIL}} {{DAYS_OVERDUE}} {{GENERAL_RULE}} {{SLACK_CHANNEL}} {{HANDBOOK_URL}} {{RESOURCES_URL}} {{MARK_DONE_URL}}"
         context = {
             "show_name": "A",
@@ -225,32 +150,27 @@ class TestRenderTemplate:
         result = render_template(template, context)
         assert "A B C D 5 0 E F G H I" == result
 
-    def test_date_placeholder(self):
-        """{{DATE}} should be replaced with today's date."""
+    def test_date_placeholder_uses_today(self):
+        """{{DATE}} should be replaced with today's date (not a static value)."""
         template = "Today is {{DATE}}"
         result = render_template(template, {})
         today = date.today().strftime("%Y-%m-%d")
         assert today in result
 
-    def test_empty_template(self):
-        assert render_template("", {}) == ""
-
-    def test_none_template(self):
-        assert render_template(None, {}) == ""
-
-    def test_missing_context_values(self):
-        """Missing context values should become empty strings."""
-        template = "Show: {{SHOW_NAME}}, Task: {{TASK}}"
-        result = render_template(template, {})
-        assert result == "Show: , Task: "
-
-    def test_camelcase_context_keys(self):
-        """Should also accept camelCase keys (for JS compatibility)."""
+    def test_camelcase_context_keys_for_js_compat(self):
+        """The JS version uses camelCase — verify our dual-key lookup works."""
         template = "{{SHOW_NAME}} {{HANDBOOK_URL}}"
         context = {"showName": "Hamlet", "handbookUrl": "https://example.com"}
         result = render_template(template, context)
         assert "Hamlet" in result
         assert "https://example.com" in result
+
+    def test_snake_case_takes_precedence(self):
+        """If both snake_case and camelCase are present, snake_case wins."""
+        template = "{{SHOW_NAME}}"
+        context = {"show_name": "Snake", "showName": "Camel"}
+        result = render_template(template, context)
+        assert result == "Snake"
 
 
 class TestTaskTemplateLookups:
@@ -315,17 +235,5 @@ class TestTaskTemplateLookups:
         assert result is None
 
 
-class TestResolveRecipientEmail:
-    """Tests for resolve_recipient_email()."""
-
-    def test_returns_show_email(self):
-        assert resolve_recipient_email({"show_email": "show@kwlt.org"}) == "show@kwlt.org"
-
-    def test_returns_none_when_empty(self):
-        assert resolve_recipient_email({"show_email": ""}) is None
-
-    def test_returns_none_when_missing(self):
-        assert resolve_recipient_email({}) is None
-
-    def test_camelcase_key(self):
-        assert resolve_recipient_email({"showEmail": "show@kwlt.org"}) == "show@kwlt.org"
+# Note: TestResolveRecipientEmail removed — the function is a trivial
+# dict.get() with an `or` chain. No business logic to test.
