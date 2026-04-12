@@ -1,10 +1,10 @@
 """
-Tests for pure utility functions ported from the Apps Script codebase:
-  - Token generation (_generateToken / buildMarkDoneUrl)
-  - Date utilities (_stripTime, _daysBetween, _computeDate)
-  - String utilities (_escapeHtml, _stripEmoji)
-  - Template rendering (_renderTemplate)
-  - Task template lookups
+Tests for ported utility functions:
+  - Token generation (generate_token / build_mark_done_url)
+  - Date utilities (days_between, compute_date) — type coercion only
+  - Emoji stripping (strip_emoji) — regex pattern validation
+  - Template rendering (render_template)
+  - Task template lookups (is_auto_complete_task, etc.)
 """
 
 from datetime import date, datetime
@@ -92,11 +92,11 @@ class TestDateUtilities:
     """
 
     def test_days_between_handles_mixed_datetime_date(self):
-        """Our wrapper should accept datetimes and strip time before computing."""
-        dt1 = datetime(2026, 5, 1, 10, 0)
-        dt2 = datetime(2026, 5, 3, 22, 0)
-        # Without stripping time, this could be 2.5 days — verify we get 2
-        assert days_between(dt1, dt2) == 2
+        """Our wrapper should accept a mix of datetime and date args."""
+        dt = datetime(2026, 5, 1, 10, 0)
+        d = date(2026, 5, 3)
+        assert days_between(dt, d) == 2
+        assert days_between(d, dt) == -2
 
     def test_compute_date_missing_anchor_returns_none(self):
         """Missing anchor should return None, not raise."""
