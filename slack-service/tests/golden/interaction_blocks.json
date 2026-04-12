@@ -1,0 +1,95 @@
+{
+  "readthrough_prompt": {
+    "attachments": [
+      {
+        "color": "#6d28d9",
+        "fallback": "📅 Readthrough date needed for Test Show — please set it in the Show Setup sheet or use the date picker.",
+        "blocks": [
+          {
+            "type": "section",
+            "text": {
+              "type": "mrkdwn",
+              "text": "📅 *Readthrough Date Needed — Test Show*\n\nAuditions are wrapped! When is the readthrough? Pick a date below so reminders for readthrough-dependent tasks can be scheduled."
+            }
+          },
+          {
+            "type": "actions",
+            "elements": [
+              {
+                "type": "datepicker",
+                "action_id": "readthrough_date:Test%20Show",
+                "placeholder": {
+                  "type": "plain_text",
+                  "text": "Choose readthrough date"
+                }
+              }
+            ]
+          },
+          {
+            "type": "context",
+            "elements": [
+              {
+                "type": "mrkdwn",
+                "text": "_This prompt will repeat daily until the date is set._"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "mark_done_confirmation": {
+    "attachments": [
+      {
+        "color": "#059669",
+        "fallback": "✅ Submit poster for approval marked done by <@U12345>",
+        "blocks": [
+          {
+            "type": "section",
+            "text": {
+              "type": "mrkdwn",
+              "text": "✅ *Submit poster for approval* marked done by <@U12345>"
+            }
+          },
+          {
+            "type": "actions",
+            "elements": [
+              {
+                "type": "button",
+                "text": { "type": "plain_text", "text": "↩️ Undo", "emoji": true },
+                "action_id": "mark_undone:Test%20Show:Submit%20poster%20for%20approval"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "readthrough_confirmation": {
+    "attachments": [
+      {
+        "color": "#6d28d9",
+        "fallback": "✅ Readthrough date for Test Show set to 2026-06-15",
+        "blocks": [
+          {
+            "type": "section",
+            "text": {
+              "type": "mrkdwn",
+              "text": "✅ *Readthrough date for Test Show* set to *2026-06-15* by <@U12345>.\n2 dependent task(s) reactivated.\nMembership Director and Show Support have been notified."
+            }
+          },
+          {
+            "type": "actions",
+            "elements": [
+              {
+                "type": "button",
+                "text": { "type": "plain_text", "text": "📅 Change Date", "emoji": true },
+                "action_id": "change_readthrough_date:Test%20Show"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "advance": {
+    "attachments": [
+      {
+        "color": "#2563eb",
+        "fallback": "📋 Upcoming: Submit poster for approval to Show Support representative (Producer) — due 2026-05-01",
+        "blocks": [
+          {
+            "type": "section",
+            "text": {
+              "type": "mrkdwn",
+              "text": "📋 *Upcoming:* Submit poster for approval to Show Support representative\n👤 *Responsible:* Producer  |  📅 *Due:* 2026-05-01"
+            }
+          },
+          {
+            "type": "actions",
+            "elements": [
+              {
+                "type": "button",
+                "text": { "type": "plain_text", "text": "✅ Mark Done", "emoji": true },
+                "style": "primary",
+                "action_id": "mark_done:Test%20Show:Submit%20poster%20for%20approval%20to%20Show%20Support%20representative"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "thread_text": "*Deadline:* 2026-05-01\n*Status:* 🗓️ 5 days remaining\n\n📌 *Timing:* 6 weeks before opening (1 week before printing)\n📖 <https://example.com/handbook|Production Handbook>\n📁 <https://example.com/resources|Show Resources Folder>"
+  },
+  "urgent": {
+    "attachments": [
+      {
+        "color": "#f59e0b",
+        "fallback": "⚠️ Due tomorrow: Submit poster for approval to Show Support representative (Producer) — due 2026-05-01",
+        "blocks": [
+          {
+            "type": "section",
+            "text": {
+              "type": "mrkdwn",
+              "text": "⚠️ *Due tomorrow:* Submit poster for approval to Show Support representative\n👤 *Responsible:* Producer  |  📅 *Due:* 2026-05-01"
+            }
+          },
+          {
+            "type": "actions",
+            "elements": [
+              {
+                "type": "button",
+                "text": { "type": "plain_text", "text": "✅ Mark Done", "emoji": true },
+                "style": "primary",
+                "action_id": "mark_done:Test%20Show:Submit%20poster%20for%20approval%20to%20Show%20Support%20representative"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "thread_text": "*Deadline:* 2026-05-01\n*Status:* 🗓️ 1 days remaining\n\n📌 *Timing:* 6 weeks before opening (1 week before printing)\n📖 <https://example.com/handbook|Production Handbook>\n📁 <https://example.com/resources|Show Resources Folder>"
+  },
+  "overdue": {
+    "attachments": [
+      {
+        "color": "#dc2626",
+        "fallback": "🚨 Overdue: Submit poster for approval to Show Support representative (Producer) — due 2026-05-01",
+        "blocks": [
+          {
+            "type": "section",
+            "text": {
+              "type": "mrkdwn",
+              "text": "🚨 *Overdue:* Submit poster for approval to Show Support representative\n👤 *Responsible:* Producer  |  📅 *Due:* 2026-05-01"
+            }
+          },
+          {
+            "type": "actions",
+            "elements": [
+              {
+                "type": "button",
+                "text": { "type": "plain_text", "text": "✅ Mark Done", "emoji": true },
+                "style": "primary",
+                "action_id": "mark_done:Test%20Show:Submit%20poster%20for%20approval%20to%20Show%20Support%20representative"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "thread_text": "*Deadline:* 2026-05-01\n*Status:* 🚨 3 days overdue\n\n📌 *Timing:* 6 weeks before opening (1 week before printing)\n📖 <https://example.com/handbook|Production Handbook>\n📁 <https://example.com/resources|Show Resources Folder>"
+  }
+}
