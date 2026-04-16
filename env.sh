@@ -15,6 +15,11 @@ CLASP_FILE="$SCRIPT_DIR/.clasp.json"
 PROD_FILE="$SCRIPT_DIR/.clasp-prod.json"
 TEST_FILE="$SCRIPT_DIR/.clasp-test.json"
 
+# Spreadsheet IDs for the slack-service .env
+PROD_SPREADSHEET_ID="1HE83ZLd_OqXpvWGrMfpqzZi0M1OY3I8n0Icjotu6sVw"
+TEST_SPREADSHEET_ID="12srzqn-vTUUC0mYBT5RsOPqLWXeNB79152GcQKOoM5Y"
+SLACK_ENV_FILE="$SCRIPT_DIR/slack-service/.env"
+
 # --- Helpers ---
 
 _check_file_exists() {
@@ -61,6 +66,35 @@ _detect_env() {
 
 # --- Commands ---
 
+_switch_slack_env() {
+  local env="$1"
+  local sheet_id
+
+  case "$env" in
+    prod) sheet_id="$PROD_SPREADSHEET_ID" ;;
+    test) sheet_id="$TEST_SPREADSHEET_ID" ;;
+  esac
+
+  if [[ "$sheet_id" == "PASTE_YOUR_TEST_SPREADSHEET_ID_HERE" ]]; then
+    echo "WARNING: TEST_SPREADSHEET_ID not set in env.sh — slack-service .env not updated."
+    echo "Replace PASTE_YOUR_TEST_SPREADSHEET_ID_HERE in env.sh with your test spreadsheet ID."
+    return 1
+  fi
+
+  if [[ -f "$SLACK_ENV_FILE" ]]; then
+    # Replace the SPREADSHEET_ID line in-place
+    if grep -q '^SPREADSHEET_ID=' "$SLACK_ENV_FILE"; then
+      sed -i '' "s|^SPREADSHEET_ID=.*|SPREADSHEET_ID=${sheet_id}|" "$SLACK_ENV_FILE"
+    else
+      echo "SPREADSHEET_ID=${sheet_id}" >> "$SLACK_ENV_FILE"
+    fi
+    echo "Slack service SPREADSHEET_ID → ${sheet_id:0:12}…"
+  else
+    echo "WARNING: slack-service/.env not found — skipping slack env update."
+    return 1
+  fi
+}
+
 cmd_switch() {
   local env="$1"
   local source_file label warning
@@ -96,32 +130,52 @@ cmd_switch() {
     exit 1
   fi
 
+  # Switch clasp environment
   cp "$source_file" "$CLASP_FILE"
+
+  # Switch slack-service spreadsheet ID
+  _switch_slack_env "$env"
+
+  echo ""
   echo "$warning"
   echo ""
   echo "Active environment: $label"
-  echo "Script ID: $script_id"
+  echo "Clasp Script ID:   $script_id"
+  echo "Spreadsheet ID:    $( [[ "$env" == "prod" ]] && echo "$PROD_SPREADSHEET_ID" || echo "$TEST_SPREADSHEET_ID" )"
+  echo ""
+  echo "Note: If the slack service is running, restart it to pick up the new spreadsheet ID."
 }
 
 cmd_status() {
   local env
   env=$(_detect_env)
 
+  # Get current slack-service spreadsheet ID
+  local slack_sheet_id="(not set)"
+  if [[ -f "$SLACK_ENV_FILE" ]]; then
+    slack_sheet_id=$(grep '^SPREADSHEET_ID=' "$SLACK_ENV_FILE" | cut -d= -f2)
+    [[ -z "$slack_sheet_id" ]] && slack_sheet_id="(not set)"
+  fi
+
   case "$env" in
     prod)
       echo "Active environment: PRODUCTION"
-      echo "Script ID: $(_get_script_id "$CLASP_FILE")"
+      echo "Clasp Script ID:   $(_get_script_id "$CLASP_FILE")"
+      echo "Spreadsheet ID:    $slack_sheet_id"
       ;;
     test)
       echo "Active environment: TEST"
-      echo "Script ID: $(_get_script_id "$CLASP_FILE")"
+      echo "Clasp Script ID:   $(_get_script_id "$CLASP_FILE")"
+      echo "Spreadsheet ID:    $slack_sheet_id"
       ;;
     none)
       echo "No .clasp.json found. Run ./env.sh prod or ./env.sh test to set up."
+      echo "Spreadsheet ID:    $slack_sheet_id"
       ;;
     unknown)
       echo "Active environment: UNKNOWN"
-      echo "Script ID: $(_get_script_id "$CLASP_FILE")"
+      echo "Clasp Script ID:   $(_get_script_id "$CLASP_FILE")"
+      echo "Spreadsheet ID:    $slack_sheet_id"
       echo ""
       echo ".clasp.json does not match either .clasp-prod.json or .clasp-test.json"
       ;;

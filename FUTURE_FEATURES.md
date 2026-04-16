@@ -53,6 +53,23 @@ After closing, automatically send a scheduling form (e.g., Doodle or Google Form
 
 ---
 
+### Newsletter date sync from external spreadsheet
+The newsletter team maintains their own spreadsheet with publication dates. Add a sync mechanism that reads their sheet on a daily basis, identifies newsletter dates that fall within each active show's run, and automatically adds timeline tasks (e.g., "Submit content for newsletter" X days before, "Newsletter publishes" on the date). Rows added this way would be tagged (e.g., Notes = `"Auto-added from Newsletter schedule"`) so the system can update or remove them if newsletter dates change.
+
+**Implementation notes:**
+- New secret: `NEWSLETTER_SHEET_ID` (managed via 🔐 Manage Secrets menu)
+- New file: `NewsletterSync.gs` (~100-150 lines)
+- Opens the external sheet via `SpreadsheetApp.openById()` (needs View access)
+- Called from `runDailyReminders()` or on its own schedule
+- Needs to define: how the newsletter sheet associates dates with shows (by name, by date range overlap, etc.), what tasks to create per newsletter date, and cleanup policy for removed dates
+
+---
+
+### Anchor date change propagation
+Currently, if an anchor date (Opening Night, Audition Start, etc.) is changed in Show Setup after a show's timeline has been created, the computed task deadlines in the timeline tab are **not** automatically recomputed — only the Readthrough Date has change detection. Add an `onShowSetupEdit` handler (or extend the existing one) that detects changes to any anchor date column and recomputes all affected task deadlines in the corresponding show timeline tab.
+
+---
+
 ## Longer-term: Standalone KWLT Slack App
 
 > **Status: IN PROGRESS** — The standalone Python Slack service (`slack-service/`) has been built with FastAPI. Phases 0-2 are complete. See next steps below.
@@ -65,12 +82,9 @@ After closing, automatically send a scheduling form (e.g., Doodle or Google Form
 
 ### Next steps (pick up here)
 
-1. **Manual testing** — verify the service works end-to-end:
-   - Start locally: `cd slack-service && source .venv/bin/activate && uvicorn app.main:app --port 8080 --reload`
-   - Test health: `http://localhost:8080/health`
-   - Test Mark Done email link in browser (generate a valid token with a real show/task from the spreadsheet)
-   - Test Slack interactions: install ngrok (`brew install ngrok`), run `ngrok http 8080`, temporarily point Slack Interactivity URL to the ngrok URL + `/slack/interactions`, add `SLACK_SIGNING_SECRET` and `SLACK_BOT_TOKEN` to `.env`, click a Mark Done button in Slack
-   - **Remember to restore the Slack Interactivity URL to the Apps Script web app URL when done testing**
+1. ~~**Manual testing** — verify the service works end-to-end~~ ✅ Done (2026-04-16)
+   - Health check, Mark Done via Slack button, Slack interactions via ngrok — all working
+   - `env.sh` now switches both clasp and slack-service `SPREADSHEET_ID` in one command
 
 2. **Phase 3 — Port Outbound Slack Messaging**: Port `sendSlack()`, block message builders, daily digest to Python. Have Apps Script daily trigger call the Python service for Slack sends (hybrid model). Email stays in Apps Script.
 
