@@ -87,6 +87,7 @@ Currently, if an anchor date (Opening Night, Audition Start, etc.) is changed in
    - `env.sh` now switches both clasp and slack-service `SPREADSHEET_ID` in one command
 
 2. **Phase 3 — Port Outbound Slack Messaging**: Port `sendSlack()`, block message builders, daily digest to Python. Have Apps Script daily trigger call the Python service for Slack sends (hybrid model). Email stays in Apps Script.
+   - ⚠️ **Before starting**: create a feature branch (`git checkout -b phase-3-outbound-slack`) — don't work directly on `main`.
 
 3. **Phase 4 — RAG Q&A**: Chunk + embed Production Handbook and Policy Manual, ChromaDB vector store, `POST /slack/events` for `app_mention` handler, GPT-4o-mini for answers, threaded Slack responses with source citations.
 
