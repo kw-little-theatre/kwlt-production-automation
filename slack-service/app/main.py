@@ -211,36 +211,40 @@ def reminders_send(context: TaskContext):
     if not context.slack_channel:
         return {"ok": False, "error": "No Slack channel specified"}
 
-    # Determine action type from days_until
-    if context.days_until <= -settings.overdue_escalation_days:
-        action = "overdue"
-    elif context.days_until <= settings.urgent_reminder_days:
-        action = "urgent"
-    else:
-        action = "advance"
+    try:
+        # Determine action type from days_until
+        if context.days_until <= -settings.overdue_escalation_days:
+            action = "overdue"
+        elif context.days_until <= settings.urgent_reminder_days:
+            action = "urgent"
+        else:
+            action = "advance"
 
-    # Override for optional tasks — only advance
-    if context.is_optional:
-        action = "advance"
+        # Override for optional tasks — only advance
+        if context.is_optional:
+            action = "advance"
 
-    # Build the block message
-    msg = build_reminder_blocks(context.model_dump(), action)
+        # Build the block message
+        msg = build_reminder_blocks(context.model_dump(), action)
 
-    # Send parent message
-    parent_result = slack.send_message(
-        context.slack_channel,
-        attachments=msg["attachments"],
-    )
-
-    # Send threaded reply with details
-    if parent_result.get("ok") and parent_result.get("ts") and msg.get("thread_text"):
-        slack.send_message(
+        # Send parent message
+        parent_result = slack.send_message(
             context.slack_channel,
-            text=msg["thread_text"],
-            thread_ts=parent_result["ts"],
+            attachments=msg["attachments"],
         )
 
-    return parent_result
+        # Send threaded reply with details
+        if parent_result.get("ok") and parent_result.get("ts") and msg.get("thread_text"):
+            slack.send_message(
+                context.slack_channel,
+                text=msg["thread_text"],
+                thread_ts=parent_result["ts"],
+            )
+
+        return parent_result
+    except Exception as e:
+        logger.error(f"Error sending reminder: {e}", exc_info=True)
+        return {"ok": False, "error": "Internal error sending reminder"}
 
 
 @app.post("/reminders/digest")
@@ -254,35 +258,39 @@ def reminders_digest(items: list[DigestItem]):
     if not settings.show_support_channel:
         return {"ok": False, "error": "No Show Support channel configured"}
 
-    from datetime import date
-    today = date.today().strftime("%Y-%m-%d")
+    try:
+        from datetime import date
+        today = date.today().strftime("%Y-%m-%d")
 
-    # Group by show
-    by_show: dict[str, list[DigestItem]] = {}
-    for item in items:
-        by_show.setdefault(item.show, []).append(item)
+        # Group by show
+        by_show: dict[str, list[DigestItem]] = {}
+        for item in items:
+            by_show.setdefault(item.show, []).append(item)
 
-    text = f"📋 *Show Support Reminder Summary — {today}*\n\n"
+        text = f"📋 *Show Support Reminder Summary — {today}*\n\n"
 
-    for show, show_items in by_show.items():
-        text += f"🎭 *{show}*\n"
-        for item in show_items:
-            icon = "🚨" if item.action == "overdue" else "⚠️" if item.action == "urgent" else "📋"
-            status = "sent" if item.success else "FAILED"
-            if item.days_until < 0:
-                timing = f"{abs(item.days_until)}d overdue"
-            elif item.days_until == 0:
-                timing = "TODAY"
-            else:
-                timing = f"{item.days_until}d remaining"
-            text += f"  {icon} {item.task} — {item.responsible} — {timing} [{status}]\n"
-        text += "\n"
+        for show, show_items in by_show.items():
+            text += f"🎭 *{show}*\n"
+            for item in show_items:
+                icon = "🚨" if item.action == "overdue" else "⚠️" if item.action == "urgent" else "📋"
+                status = "sent" if item.success else "FAILED"
+                if item.days_until < 0:
+                    timing = f"{abs(item.days_until)}d overdue"
+                elif item.days_until == 0:
+                    timing = "TODAY"
+                else:
+                    timing = f"{item.days_until}d remaining"
+                text += f"  {icon} {item.task} — {item.responsible} — {timing} [{status}]\n"
+            text += "\n"
 
-    sent = sum(1 for i in items if i.success)
-    text += f"_{sent}/{len(items)} reminders sent successfully._"
+        sent = sum(1 for i in items if i.success)
+        text += f"_{sent}/{len(items)} reminders sent successfully._"
 
-    result = slack.send_message(settings.show_support_channel, text=text)
-    return result
+        result = slack.send_message(settings.show_support_channel, text=text)
+        return result
+    except Exception as e:
+        logger.error(f"Error sending digest: {e}", exc_info=True)
+        return {"ok": False, "error": "Internal error sending digest"}
 
 
 @app.post("/reminders/readthrough-prompt")
@@ -296,9 +304,13 @@ def reminders_readthrough_prompt(show_name: str, channel: str):
     if not channel:
         return {"ok": False, "error": "No channel specified"}
 
-    msg = build_readthrough_date_prompt(show_name)
-    result = slack.send_message(channel, attachments=msg["attachments"])
-    return result
+    try:
+        msg = build_readthrough_date_prompt(show_name)
+        result = slack.send_message(channel, attachments=msg["attachments"])
+        return result
+    except Exception as e:
+        logger.error(f"Error sending readthrough prompt: {e}", exc_info=True)
+        return {"ok": False, "error": "Internal error sending readthrough prompt"}
 
 
 # ── Slack Events API (Phase 4 — RAG Q&A) ────────────────────────────────────
