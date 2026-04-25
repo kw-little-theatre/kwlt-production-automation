@@ -242,8 +242,8 @@ def reminders_send(context: TaskContext):
             )
 
         return parent_result
-    except Exception as e:
-        logger.error(f"Error sending reminder: {e}", exc_info=True)
+    except Exception:
+        logger.exception("Error sending reminder")
         return {"ok": False, "error": "Internal error sending reminder"}
 
 
@@ -288,8 +288,8 @@ def reminders_digest(items: list[DigestItem]):
 
         result = slack.send_message(settings.show_support_channel, text=text)
         return result
-    except Exception as e:
-        logger.error(f"Error sending digest: {e}", exc_info=True)
+    except Exception:
+        logger.exception("Error sending digest")
         return {"ok": False, "error": "Internal error sending digest"}
 
 
@@ -308,8 +308,8 @@ def reminders_readthrough_prompt(show_name: str, channel: str):
         msg = build_readthrough_date_prompt(show_name)
         result = slack.send_message(channel, attachments=msg["attachments"])
         return result
-    except Exception as e:
-        logger.error(f"Error sending readthrough prompt: {e}", exc_info=True)
+    except Exception:
+        logger.exception("Error sending readthrough prompt")
         return {"ok": False, "error": "Internal error sending readthrough prompt"}
 
 
