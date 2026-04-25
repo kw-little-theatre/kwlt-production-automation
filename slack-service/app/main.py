@@ -30,6 +30,20 @@ app = FastAPI(
     version="0.1.0",
 )
 
+
+# ─── Global exception handler — prevents stack trace leaks ────────────────────
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Catch unhandled exceptions and return a generic error instead of a traceback."""
+    logger.error("Unhandled exception on %s %s", request.method, request.url.path)
+    return Response(
+        status_code=500,
+        content='{"error": "Internal server error"}',
+        media_type="application/json",
+    )
+
+
 # Cached singletons — avoids re-authenticating on every request
 _sheets_instance = None
 _slack_instance = None
@@ -243,7 +257,7 @@ def reminders_send(context: TaskContext):
 
         return parent_result
     except Exception:
-        logger.exception("Error sending reminder")
+        logger.error("Error sending reminder")
         return {"ok": False, "error": "Internal error sending reminder"}
 
 
@@ -289,7 +303,7 @@ def reminders_digest(items: list[DigestItem]):
         result = slack.send_message(settings.show_support_channel, text=text)
         return result
     except Exception:
-        logger.exception("Error sending digest")
+        logger.error("Error sending digest")
         return {"ok": False, "error": "Internal error sending digest"}
 
 
@@ -309,7 +323,7 @@ def reminders_readthrough_prompt(show_name: str, channel: str):
         result = slack.send_message(channel, attachments=msg["attachments"])
         return result
     except Exception:
-        logger.exception("Error sending readthrough prompt")
+        logger.error("Error sending readthrough prompt")
         return {"ok": False, "error": "Internal error sending readthrough prompt"}
 
 
