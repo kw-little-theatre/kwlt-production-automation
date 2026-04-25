@@ -263,8 +263,8 @@ def reminders_send(context: TaskContext):
             )
 
         return _sanitize_slack_result(parent_result)
-    except Exception:
-        logger.error("Error sending reminder")
+    except Exception:  # CodeQL false positive: exception only logged server-side, not in response
+        logger.error("Error sending reminder", exc_info=True)
         return {"ok": False, "error": "Internal error sending reminder"}
 
 
@@ -309,8 +309,8 @@ def reminders_digest(items: list[DigestItem]):
 
         result = slack.send_message(settings.show_support_channel, text=text)
         return _sanitize_slack_result(result)
-    except Exception:
-        logger.error("Error sending digest")
+    except Exception:  # CodeQL false positive: exception only logged server-side, not in response
+        logger.error("Error sending digest", exc_info=True)
         return {"ok": False, "error": "Internal error sending digest"}
 
 
@@ -329,8 +329,8 @@ def reminders_readthrough_prompt(show_name: str, channel: str):
         msg = build_readthrough_date_prompt(show_name)
         result = slack.send_message(channel, attachments=msg["attachments"])
         return _sanitize_slack_result(result)
-    except Exception:
-        logger.error("Error sending readthrough prompt")
+    except Exception:  # CodeQL false positive: exception only logged server-side, not in response
+        logger.error("Error sending readthrough prompt", exc_info=True)
         return {"ok": False, "error": "Internal error sending readthrough prompt"}
 
 
