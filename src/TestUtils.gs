@@ -16,7 +16,7 @@ function testAllMessageTypes() {
   const config = _loadConfig(ss);
   const ui = SpreadsheetApp.getUi();
 
-  // Build a fake context
+  // Build a fake context (defaults to Mainstage production type)
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
 
@@ -31,6 +31,7 @@ function testAllMessageTypes() {
     slackChannel: config.slackDefaultChannel || '',
     handbookUrl: config.handbookUrl || 'https://example.com/handbook',
     notifyVia: 'both',
+    productionType: PRODUCTION_TYPE.MAINSTAGE,
     markDoneUrl: config.webAppUrl
       ? buildMarkDoneUrl(config.webAppUrl, '[TEST] Sample Show', 'Submit poster for approval (TEST)')
       : '',

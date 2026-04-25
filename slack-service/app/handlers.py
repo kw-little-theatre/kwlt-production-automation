@@ -56,6 +56,13 @@ def handle_block_action(
             logger.error(f"Malformed mark_undone action_id: {e}")
             slack.send_response_url(response_url, "⚠️ Something went wrong parsing that action.", ephemeral=True)
 
+    elif action_id.startswith("skip_task:"):
+        try:
+            _handle_skip_task(action_id, user_name, response_url, channel, sheets, slack)
+        except ValueError as e:
+            logger.error(f"Malformed skip_task action_id: {e}")
+            slack.send_response_url(response_url, "⚠️ Something went wrong parsing that action.", ephemeral=True)
+
     elif action_id.startswith("readthrough_date:"):
         selected_date = payload.get("actions", [{}])[0].get("selected_date")
         _handle_readthrough_date(action_id, selected_date, user_name, response_url, channel, sheets, slack)
@@ -145,6 +152,35 @@ def _handle_mark_undone(
         slack.send_response_url(
             response_url,
             f"⚠️ Could not undo: {result.message}",
+            ephemeral=True,
+        )
+
+
+# ─── Skip Task ─────────────────────────────────────────────────────────────────
+
+
+def _handle_skip_task(
+    action_id: str,
+    user_name: str,
+    response_url: str,
+    channel: str,
+    sheets: SheetRepository,
+    slack: SlackClient,
+) -> None:
+    """Handle the Skip button interaction for optional tasks."""
+    show_name, task_text = _parse_action_id(action_id, "skip_task:")
+    result = sheets.mark_task_skipped(show_name, task_text)
+
+    if result.success:
+        slack.send_response_url(
+            response_url,
+            f"⏭️ *{task_text}* skipped by {user_name} — no further reminders will be sent.",
+            ephemeral=False,
+        )
+    else:
+        slack.send_response_url(
+            response_url,
+            f"⚠️ Could not skip: {result.message}",
             ephemeral=True,
         )
 

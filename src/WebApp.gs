@@ -24,7 +24,7 @@ function doGet(e) {
   const token = params.token;
 
   // Validate
-  if (action !== 'done' || !showName || !taskText || !token) {
+  if ((action !== 'done' && action !== 'skip') || !showName || !taskText || !token) {
     return _htmlResponse('❌ Invalid Request', 'This link appears to be malformed or expired.', false);
   }
 
@@ -32,6 +32,22 @@ function doGet(e) {
   const expectedToken = _generateToken(showName, taskText);
   if (token !== expectedToken) {
     return _htmlResponse('❌ Invalid Token', 'This link may have expired or been tampered with.', false);
+  }
+
+  if (action === 'skip') {
+    const result = _skipTask(showName, taskText);
+    if (result.success) {
+      return _htmlResponse(
+        '⏭️ Task Skipped',
+        '<strong>' + _escapeHtml(taskText) + '</strong><br><br>' +
+        'Show: ' + _escapeHtml(showName) + '<br>' +
+        'Skipped at: ' + new Date().toLocaleString() + '<br><br>' +
+        'No further reminders will be sent for this task.<br>You can close this tab.',
+        true
+      );
+    } else {
+      return _htmlResponse('⚠️ Could Not Skip', result.message, false);
+    }
   }
 
   // Find and update the task
@@ -177,6 +193,38 @@ function doPost(e) {
 
         return ContentService.createTextOutput('').setMimeType(ContentService.MimeType.TEXT);
       }
+
+      // ── Skip task button interaction ─────────────────────────────────
+      if (actionId && actionId.startsWith('skip_task:')) {
+        const parts = actionId.substring('skip_task:'.length);
+        const separatorIdx = parts.indexOf(':');
+        const showName = decodeURIComponent(parts.substring(0, separatorIdx));
+        const taskText = decodeURIComponent(parts.substring(separatorIdx + 1));
+
+        const result = _skipTask(showName, taskText);
+        const userName = payload.user ? '<@' + payload.user.id + '>' : 'Someone';
+
+        if (result.success) {
+          _sendSlackResponseUrl(payload.response_url,
+            '⏭️ *' + taskText + '* skipped by ' + userName + ' — no further reminders will be sent.',
+            false);
+
+          // Notify Show Support channel
+          const config = _loadConfig(SpreadsheetApp.getActiveSpreadsheet());
+          if (config.showSupportChannel) {
+            sendSlack(config,
+              '⏭️ *Optional task skipped — ' + showName + '*\n' +
+              '*' + taskText + '* was skipped by ' + userName + '.',
+              config.showSupportChannel);
+          }
+        } else {
+          _sendSlackResponseUrl(payload.response_url,
+            '⚠️ Could not skip: ' + result.message,
+            true);
+        }
+
+        return ContentService.createTextOutput('').setMimeType(ContentService.MimeType.TEXT);
+      }
     }
 
     return ContentService
@@ -273,6 +321,50 @@ function _markTaskUndone(showName, taskText) {
         'web app', 'mark-undone', true);
 
       return { success: true, message: 'Task reverted to Pending.' };
+    }
+  }
+
+  return { success: false, message: 'Task "' + taskText + '" not found in the ' + showName + ' timeline.' };
+}
+
+/**
+ * Finds a task in a show's timeline tab and marks it Skipped.
+ * Used for optional tasks that a production team decides not to do.
+ * @param {string} showName — the show name (matches Show Setup)
+ * @param {string} taskText — the task description (partial match OK)
+ * @returns {{ success: boolean, message: string }}
+ */
+function _skipTask(showName, taskText) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const tabName = SHOW_TAB_PREFIX + showName;
+  const sheet = ss.getSheetByName(tabName);
+
+  if (!sheet) {
+    return { success: false, message: 'Show tab "' + tabName + '" not found.' };
+  }
+
+  const data = sheet.getDataRange().getValues();
+
+  for (let row = 1; row < data.length; row++) {
+    const currentTask = String(data[row][COL.TASK]);
+    const currentStatus = data[row][COL.STATUS];
+
+    if (currentTask === taskText || currentTask.indexOf(taskText) !== -1 || taskText.indexOf(currentTask) !== -1) {
+      if (currentStatus === STATUS.SKIPPED) {
+        return { success: true, message: 'Task was already skipped.' };
+      }
+
+      sheet.getRange(row + 1, COL.STATUS + 1).setValue(STATUS.SKIPPED);
+      sheet.getRange(row + 1, COL.LAST_NOTIFIED + 1).setValue(new Date());
+      sheet.getRange(row + 1, COL.NOTES + 1).setValue(
+        (data[row][COL.NOTES] ? data[row][COL.NOTES] + '\n' : '') +
+        'Skipped via Slack at ' + new Date().toLocaleString()
+      );
+
+      _logSend(ss, { showName: showName, task: currentTask, responsible: data[row][COL.RESPONSIBLE] },
+        'web app', 'skip-task', true);
+
+      return { success: true, message: 'Task skipped.' };
     }
   }
 
@@ -436,6 +528,7 @@ function _reactivateReadthroughTasksForShow(ss, showName, readthroughDate) {
 
   const config = _loadConfig(ss);
   const showData = _getActiveShows(ss).find(function(s) { return s.name === showName; });
+  const productionType = showData ? showData.productionType : PRODUCTION_TYPE.MAINSTAGE;
   let reactivated = 0;
 
   for (let row = 1; row < data.length; row++) {
@@ -466,7 +559,7 @@ function _reactivateReadthroughTasksForShow(ss, showName, readthroughDate) {
 
     // Restore the task's original notifyVia (it was set to 'none' when skipped)
     const taskName = data[row][COL.TASK];
-    const originalNotifyVia = _lookupOriginalNotifyVia(taskName) || 'both';
+    const originalNotifyVia = _lookupOriginalNotifyVia(taskName, productionType) || 'both';
 
     sheet.getRange(row + 1, COL.COMPUTED_DATE + 1).setValue(newDate);
     sheet.getRange(row + 1, COL.STATUS + 1).setValue(STATUS.PENDING);
@@ -497,11 +590,12 @@ function _reactivateReadthroughTasksForShow(ss, showName, readthroughDate) {
         handbookUrl: config.handbookUrl,
         notifyVia: originalNotifyVia,
         markDoneUrl: buildMarkDoneUrl(config.webAppUrl, showName, taskName),
+        productionType: productionType,
       };
 
       const success = _executeAction(action, context, config);
       if (success) {
-        const isAutoComplete = _isAutoCompleteTask(taskName);
+        const isAutoComplete = _isAutoCompleteTask(taskName, productionType);
         const newStatus = isAutoComplete ? STATUS.DONE : _statusAfterAction(action);
         sheet.getRange(row + 1, COL.STATUS + 1).setValue(newStatus);
         sheet.getRange(row + 1, COL.LAST_NOTIFIED + 1).setValue(new Date());
@@ -517,9 +611,11 @@ function _reactivateReadthroughTasksForShow(ss, showName, readthroughDate) {
 
 /**
  * Looks up the original notifyVia value for a task from the template data.
+ * @param {string} taskName
+ * @param {string} [productionType] — optional, defaults to Mainstage
  */
-function _lookupOriginalNotifyVia(taskName) {
-  const tasks = getTaskTemplateData();
+function _lookupOriginalNotifyVia(taskName, productionType) {
+  const tasks = getTaskTemplateForType(productionType || PRODUCTION_TYPE.MAINSTAGE);
   for (const t of tasks) {
     if (t.task === taskName || taskName.indexOf(t.task) !== -1) {
       return t.notifyVia;

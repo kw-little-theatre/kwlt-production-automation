@@ -16,7 +16,7 @@ from urllib.parse import quote
 from typing import Optional
 
 from app.constants import STATUS
-from app.task_templates import get_task_template_data
+from app.task_templates import get_task_template_data, get_task_template_for_type
 
 
 # ─── Action Determination ─────────────────────────────────────────────────────
@@ -137,47 +137,58 @@ def render_template(template: str, context: dict) -> str:
 # ─── Task Template Lookups ─────────────────────────────────────────────────────
 
 
-def is_auto_complete_task(task_name: str) -> bool:
+def is_optional_task(task_name: str, production_type: Optional[str] = None) -> bool:
+    """
+    Checks if a task has the optional flag set.
+    Optional tasks get softer reminders (advance only, no urgent/overdue).
+    """
+    for t in get_task_template_for_type(production_type):
+        if t.get("optional") and (t["task"] == task_name or t["task"] in task_name):
+            return True
+    return False
+
+
+def is_auto_complete_task(task_name: str, production_type: Optional[str] = None) -> bool:
     """
     Checks if a task has the autoComplete flag set.
     Port of _isAutoCompleteTask() from ReminderEngine.gs.
     """
-    for t in get_task_template_data():
+    for t in get_task_template_for_type(production_type):
         if t.get("autoComplete") and (t["task"] == task_name or t["task"] in task_name):
             return True
     return False
 
 
-def is_send_on_date_task(task_name: str) -> bool:
+def is_send_on_date_task(task_name: str, production_type: Optional[str] = None) -> bool:
     """
     Checks if a task has the sendOnDate flag set.
     Port of _isSendOnDateTask() from ReminderEngine.gs.
     """
-    for t in get_task_template_data():
+    for t in get_task_template_for_type(production_type):
         if t.get("sendOnDate") and (t["task"] == task_name or t["task"] in task_name):
             return True
     return False
 
 
-def get_custom_email_for_task(task_name: str) -> Optional[dict]:
+def get_custom_email_for_task(task_name: str, production_type: Optional[str] = None) -> Optional[dict]:
     """
     Looks up a task's custom email template.
     Port of _getCustomEmailForTask() from ReminderEngine.gs.
 
     Returns: dict with 'emailSubject' and 'emailBody', or None
     """
-    for t in get_task_template_data():
+    for t in get_task_template_for_type(production_type):
         if t.get("emailBody") and (t["task"] == task_name or t["task"] in task_name):
             return {"emailSubject": t["emailSubject"], "emailBody": t["emailBody"]}
     return None
 
 
-def lookup_original_notify_via(task_name: str) -> Optional[str]:
+def lookup_original_notify_via(task_name: str, production_type: Optional[str] = None) -> Optional[str]:
     """
     Looks up the original notifyVia value for a task from the template data.
     Port of _lookupOriginalNotifyVia() from WebApp.gs.
     """
-    for t in get_task_template_data():
+    for t in get_task_template_for_type(production_type):
         if t["task"] == task_name or t["task"] in task_name:
             return t.get("notifyVia")
     return None

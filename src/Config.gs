@@ -5,10 +5,20 @@
  * This file is the ONLY place you should need to change code-level settings.
  */
 
+// ─── Production Types ─────────────────────────────────────────────────────────
+const PRODUCTION_TYPE = {
+  MAINSTAGE:     'Mainstage',
+  STUDIO_SERIES: 'Studio Series',
+};
+
+const PRODUCTION_TYPES_LIST = [PRODUCTION_TYPE.MAINSTAGE, PRODUCTION_TYPE.STUDIO_SERIES];
+
 // ─── Sheet Names ──────────────────────────────────────────────────────────────
 const SHEET_CONFIG          = '⚙️ Config';
 const SHEET_SHOW_SETUP      = '🎭 Show Setup';
-const SHEET_TASK_TEMPLATE   = '📋 Task Template';
+const SHEET_TASK_TEMPLATE   = '📋 Task Template';           // legacy name (pre-production-type)
+const SHEET_TASK_TEMPLATE_MAINSTAGE = '📋 Mainstage Tasks';
+const SHEET_TASK_TEMPLATE_STUDIO    = '📋 Studio Series Tasks';
 const SHEET_MSG_TEMPLATES   = '✉️ Message Templates';
 const SHEET_SEASON_OVERVIEW = '📅 Season Overview';
 const SHEET_SEND_LOG        = '📨 Send Log';

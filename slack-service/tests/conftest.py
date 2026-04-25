@@ -43,3 +43,15 @@ def urgent_context(sample_context):
         "days_until": 1,
         "days_overdue": 0,
     }
+
+
+@pytest.fixture
+def optional_context(sample_context):
+    """A context for an optional task."""
+    return {
+        **sample_context,
+        "task": "Do headshots",
+        "general_rule": "1 month before opening (optional for studio series)",
+        "is_optional": True,
+        "production_type": "Studio Series",
+    }

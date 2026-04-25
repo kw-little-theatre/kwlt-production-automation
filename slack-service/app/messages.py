@@ -21,9 +21,10 @@ def build_reminder_blocks(context: dict, action: str) -> dict:
     Returns a dict with 'attachments' (for the parent message) and
     'thread_text' (for the threaded reply).
     """
-    emoji = "🚨" if action == "overdue" else "⚠️" if action == "urgent" else "📋"
-    color = "#dc2626" if action == "overdue" else "#f59e0b" if action == "urgent" else "#2563eb"
-    label = "Overdue" if action == "overdue" else "Due tomorrow" if action == "urgent" else "Upcoming"
+    is_optional = context.get("is_optional", context.get("isOptional", False))
+    emoji = "❔" if is_optional else "🚨" if action == "overdue" else "⚠️" if action == "urgent" else "📋"
+    color = "#a78bfa" if is_optional else "#dc2626" if action == "overdue" else "#f59e0b" if action == "urgent" else "#2563eb"
+    label = "Optional" if is_optional else "Overdue" if action == "overdue" else "Due tomorrow" if action == "urgent" else "Upcoming"
 
     show_name = context.get("show_name", context.get("showName", ""))
     task = context.get("task", "")
@@ -35,27 +36,43 @@ def build_reminder_blocks(context: dict, action: str) -> dict:
     handbook_url = context.get("handbook_url", context.get("handbookUrl", ""))
     resources_url = context.get("resources_url", context.get("resourcesUrl", ""))
 
+    # Primary message text
+    task_line = f"{emoji} *{label}:* {task}\n👤 *Responsible:* {responsible}  |  📅 *Due:* {deadline}"
+    if is_optional:
+        task_line += "\n_This task is optional — skip it if not applicable to your production._"
+
     # Primary message blocks
     primary_blocks = [
         {
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": f"{emoji} *{label}:* {task}\n👤 *Responsible:* {responsible}  |  📅 *Due:* {deadline}",
+                "text": task_line,
             },
         },
-        {
-            "type": "actions",
-            "elements": [
-                {
-                    "type": "button",
-                    "text": {"type": "plain_text", "text": "✅ Mark Done", "emoji": True},
-                    "style": "primary",
-                    "action_id": f"mark_done:{quote(show_name)}:{quote(task)}",
-                }
-            ],
-        },
     ]
+
+    # Buttons: Mark Done + Skip (for optional) or just Mark Done
+    buttons = [
+        {
+            "type": "button",
+            "text": {"type": "plain_text", "text": "✅ Mark Done", "emoji": True},
+            "style": "primary",
+            "action_id": f"mark_done:{quote(show_name)}:{quote(task)}",
+        }
+    ]
+
+    if is_optional:
+        buttons.append({
+            "type": "button",
+            "text": {"type": "plain_text", "text": "⏭️ Skip", "emoji": True},
+            "action_id": f"skip_task:{quote(show_name)}:{quote(task)}",
+        })
+
+    primary_blocks.append({
+        "type": "actions",
+        "elements": buttons,
+    })
 
     fallback_text = f"{emoji} {label}: {task} ({responsible}) — due {deadline}"
 

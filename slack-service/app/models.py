@@ -41,6 +41,7 @@ class ActiveShow(BaseModel):
     """Mirrors the objects returned by _getActiveShows() in ReminderEngine.gs."""
 
     name: str
+    production_type: str = "Mainstage"
     slack_channel: str = ""
     show_email: str = ""
     resources_url: str = ""
@@ -69,6 +70,8 @@ class TaskContext(BaseModel):
     handbook_url: str = ""
     notify_via: str = "both"  # "slack" | "email" | "both" | "none"
     mark_done_url: str = ""
+    production_type: str = "Mainstage"
+    is_optional: bool = False
 
 
 class TaskTemplate(BaseModel):
@@ -86,6 +89,7 @@ class TaskTemplate(BaseModel):
     send_on_date: bool = Field(alias="sendOnDate", default=False)
     email_subject: str = Field(alias="emailSubject", default="")
     email_body: str = Field(alias="emailBody", default="")
+    optional: bool = False
 
     model_config = {"populate_by_name": True}
 

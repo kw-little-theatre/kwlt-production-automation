@@ -54,13 +54,20 @@ function runDailyReminders() {
 
       const daysUntil = _daysBetween(today, deadline);
       const taskName = taskData[COL.TASK];
+      const isOptional = _isOptionalTask(taskName, show.productionType);
 
+      // Optional tasks only get advance reminders (no urgent/overdue)
       // Send-on-date tasks only fire on the exact deadline date
-      if (_isSendOnDateTask(taskName)) {
+      if (_isSendOnDateTask(taskName, show.productionType)) {
         if (daysUntil !== 0 || status !== STATUS.PENDING) continue;
       }
 
-      const action = _isSendOnDateTask(taskName) ? 'advance' : _determineAction(daysUntil, status, config);
+      let action = _isSendOnDateTask(taskName, show.productionType) ? 'advance' : _determineAction(daysUntil, status, config);
+
+      // Optional tasks: skip urgent and overdue reminders
+      if (isOptional && (action === 'urgent' || action === 'overdue')) {
+        action = null;
+      }
 
       if (action) {
         const context = {
@@ -77,6 +84,8 @@ function runDailyReminders() {
           handbookUrl: config.handbookUrl,
           notifyVia: notifyVia,
           markDoneUrl: buildMarkDoneUrl(config.webAppUrl, show.name, taskData[COL.TASK]),
+          productionType: show.productionType,
+          isOptional: isOptional,
         };
 
         const success = _executeAction(action, context, config);
@@ -84,7 +93,7 @@ function runDailyReminders() {
         // Update status in the sheet if any notification was sent
         if (success) {
           // Check if this task should auto-complete after the first send
-          const isAutoComplete = _isAutoCompleteTask(context.task);
+          const isAutoComplete = _isAutoCompleteTask(context.task, show.productionType);
           const newStatus = isAutoComplete ? STATUS.DONE : _statusAfterAction(action);
           sheet.getRange(row + 1, COL.STATUS + 1).setValue(newStatus);
           sheet.getRange(row + 1, COL.LAST_NOTIFIED + 1).setValue(new Date());
@@ -196,7 +205,7 @@ function _executeAction(action, context, config) {
     const recipientEmail = _resolveRecipientEmail(context, config);
     if (recipientEmail) {
       // Check if this task has a custom email template in TaskTemplateData
-      const customEmail = _getCustomEmailForTask(context.task);
+      const customEmail = _getCustomEmailForTask(context.task, context.productionType);
       let subject, body;
       if (customEmail) {
         subject = _renderTemplate(customEmail.emailSubject, context);
@@ -209,6 +218,11 @@ function _executeAction(action, context, config) {
         }
       }
       if (subject && body) {
+        // Add optional task note to email body
+        if (context.isOptional) {
+          body = 'NOTE: This task is optional — skip it if not applicable to your production.\n\n' + body;
+          subject = '[Optional] ' + subject;
+        }
         const ok = context.markDoneUrl
           ? sendHtmlEmailReminder(recipientEmail, subject, body, context.markDoneUrl)
           : sendEmailReminder(recipientEmail, subject, body);
@@ -291,12 +305,31 @@ function _getTemplate(ss, templateName) {
 }
 
 /**
+ * Checks if a task has the optional flag set.
+ * Optional tasks get softer reminders (advance only, no urgent/overdue)
+ * and a Skip button alongside Mark Done.
+ * @param {string} taskName
+ * @param {string} [productionType] — optional, defaults to Mainstage
+ */
+function _isOptionalTask(taskName, productionType) {
+  const tasks = getTaskTemplateForType(productionType || PRODUCTION_TYPE.MAINSTAGE);
+  for (const t of tasks) {
+    if (t.optional && (t.task === taskName || taskName.indexOf(t.task) !== -1)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Checks if a task has the autoComplete flag set.
  * Auto-complete tasks are marked Done after the first notification is sent
  * (used for informational emails that don't require follow-up).
+ * @param {string} taskName
+ * @param {string} [productionType] — optional, defaults to Mainstage
  */
-function _isAutoCompleteTask(taskName) {
-  const tasks = getTaskTemplateData();
+function _isAutoCompleteTask(taskName, productionType) {
+  const tasks = getTaskTemplateForType(productionType || PRODUCTION_TYPE.MAINSTAGE);
   for (const t of tasks) {
     if (t.autoComplete && (t.task === taskName || taskName.indexOf(t.task) !== -1)) {
       return true;
@@ -309,9 +342,11 @@ function _isAutoCompleteTask(taskName) {
  * Checks if a task has the sendOnDate flag set.
  * Send-on-date tasks bypass the normal advance/urgent reminder schedule
  * and are only sent once on the exact deadline date.
+ * @param {string} taskName
+ * @param {string} [productionType] — optional, defaults to Mainstage
  */
-function _isSendOnDateTask(taskName) {
-  const tasks = getTaskTemplateData();
+function _isSendOnDateTask(taskName, productionType) {
+  const tasks = getTaskTemplateForType(productionType || PRODUCTION_TYPE.MAINSTAGE);
   for (const t of tasks) {
     if (t.sendOnDate && (t.task === taskName || taskName.indexOf(t.task) !== -1)) {
       return true;
@@ -323,9 +358,11 @@ function _isSendOnDateTask(taskName) {
 /**
  * Looks up a task in the TaskTemplateData to see if it has a custom
  * emailSubject/emailBody. Returns { emailSubject, emailBody } or null.
+ * @param {string} taskName
+ * @param {string} [productionType] — optional, defaults to Mainstage
  */
-function _getCustomEmailForTask(taskName) {
-  const tasks = getTaskTemplateData();
+function _getCustomEmailForTask(taskName, productionType) {
+  const tasks = getTaskTemplateForType(productionType || PRODUCTION_TYPE.MAINSTAGE);
   for (const t of tasks) {
     if (t.emailBody && (t.task === taskName || taskName.indexOf(t.task) !== -1)) {
       return { emailSubject: t.emailSubject, emailBody: t.emailBody };
@@ -415,7 +452,7 @@ function _loadConfig(ss) {
 // ─── Active Shows ─────────────────────────────────────────────────────────────
 
 /**
- * Returns an array of { name, slackChannel, showEmail, resourcesUrl,
+ * Returns an array of { name, productionType, slackChannel, showEmail, resourcesUrl,
  * auditionEnd, readthroughDate, readthroughPromptLastSent }
  * for shows marked Active = TRUE.
  */
@@ -426,6 +463,7 @@ function _getActiveShows(ss) {
   const data = sheet.getDataRange().getValues();
   const headers = data[0];
   const nameCol = 0;
+  const typeCol = headers.indexOf('Production Type');
   const slackCol = headers.indexOf('Slack Channel');
   const emailCol = headers.indexOf('Show Email');
   const resourcesCol = headers.indexOf('Resources Folder URL');
@@ -446,18 +484,23 @@ function _getActiveShows(ss) {
       const readthrough = readthroughCol !== -1 ? data[i][readthroughCol] : '';
       const promptLast = promptCol !== -1 ? data[i][promptCol] : '';
 
-      // Parse audition end, with auto-derivation fallback (same as _getAnchorDates)
+      // Parse audition end, with auto-derivation fallback (type-aware)
+      const rawType = typeCol !== -1 ? String(data[i][typeCol] || '').trim() : '';
+      const productionType = rawType === PRODUCTION_TYPE.STUDIO_SERIES ? PRODUCTION_TYPE.STUDIO_SERIES : PRODUCTION_TYPE.MAINSTAGE;
+
       let auditionEnd = auditionEndRaw instanceof Date ? auditionEndRaw : (auditionEndRaw ? new Date(auditionEndRaw) : null);
       if (!auditionEnd || isNaN(auditionEnd.getTime())) {
         const auditionStart = auditionStartRaw instanceof Date ? auditionStartRaw : (auditionStartRaw ? new Date(auditionStartRaw) : null);
         if (auditionStart && !isNaN(auditionStart.getTime())) {
           auditionEnd = new Date(auditionStart);
-          auditionEnd.setDate(auditionEnd.getDate() + 2); // 3-day audition weekend
+          const offset = (productionType === PRODUCTION_TYPE.STUDIO_SERIES) ? 0 : 2;
+          auditionEnd.setDate(auditionEnd.getDate() + offset);
         }
       }
 
       shows.push({
         name: data[i][nameCol],
+        productionType: productionType,
         slackChannel: slackCol !== -1 ? data[i][slackCol] : '',
         showEmail: emailCol !== -1 ? data[i][emailCol] : '',
         resourcesUrl: resourcesCol !== -1 ? data[i][resourcesCol] : '',

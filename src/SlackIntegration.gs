@@ -87,31 +87,47 @@ function sendSlack(config, text, channel, opts) {
  * so the channel stays scannable. Supporting context lives in the thread.
  */
 function sendSlackBlockMessageWithButton(config, context, action) {
-  const emoji = action === 'overdue' ? '🚨' : action === 'urgent' ? '⚠️' : '📋';
-  const color = action === 'overdue' ? '#dc2626' : action === 'urgent' ? '#f59e0b' : '#2563eb';
+  const isOptional = context.isOptional || false;
+  const emoji = isOptional ? '❔' : action === 'overdue' ? '🚨' : action === 'urgent' ? '⚠️' : '📋';
+  const color = isOptional ? '#a78bfa' : action === 'overdue' ? '#dc2626' : action === 'urgent' ? '#f59e0b' : '#2563eb';
 
-  const label = action === 'overdue' ? 'Overdue' : action === 'urgent' ? 'Due tomorrow' : 'Upcoming';
+  const label = isOptional ? 'Optional' : action === 'overdue' ? 'Overdue' : action === 'urgent' ? 'Due tomorrow' : 'Upcoming';
 
   // ── Primary message: task + responsible + deadline + Mark Done button ──
+  const taskLine = isOptional
+    ? emoji + ' *' + label + ':* ' + context.task + '\n👤 *Responsible:* ' + context.responsible + '  |  📅 *Due:* ' + context.deadline + '\n_This task is optional — skip it if not applicable to your production._'
+    : emoji + ' *' + label + ':* ' + context.task + '\n👤 *Responsible:* ' + context.responsible + '  |  📅 *Due:* ' + context.deadline;
+
   const primaryBlocks = [
     {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: emoji + ' *' + label + ':* ' + context.task + '\n👤 *Responsible:* ' + context.responsible + '  |  📅 *Due:* ' + context.deadline,
+        text: taskLine,
       },
     },
   ];
 
+  // Buttons: Mark Done + Skip (for optional) or just Mark Done
+  const buttons = [{
+    type: 'button',
+    text: { type: 'plain_text', text: '✅ Mark Done', emoji: true },
+    style: 'primary',
+    action_id: 'mark_done:' + encodeURIComponent(context.showName) + ':' + encodeURIComponent(context.task),
+  }];
+
+  if (isOptional) {
+    buttons.push({
+      type: 'button',
+      text: { type: 'plain_text', text: '⏭️ Skip', emoji: true },
+      action_id: 'skip_task:' + encodeURIComponent(context.showName) + ':' + encodeURIComponent(context.task),
+    });
+  }
+
   // Mark Done button always rendered — it uses Slack Interactivity (action_id), not WEB_APP_URL
   primaryBlocks.push({
     type: 'actions',
-    elements: [{
-      type: 'button',
-      text: { type: 'plain_text', text: '✅ Mark Done', emoji: true },
-      style: 'primary',
-      action_id: 'mark_done:' + encodeURIComponent(context.showName) + ':' + encodeURIComponent(context.task),
-    }],
+    elements: buttons,
   });
 
   // Fallback text shown in notifications / previews (no show name)

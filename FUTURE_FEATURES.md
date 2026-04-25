@@ -4,6 +4,18 @@ Tracked ideas for improving the KWLT Production Automation system.
 
 ## Planned
 
+### ~~Studio Series production type~~ ✅ Implemented
+Added support for a second production type: **Studio Series**. Shows can be set to either "Mainstage" or "Studio Series" via a dropdown in Show Setup. Each type has its own task template with appropriate timing, and the system generates the correct timeline based on the selected type.
+
+**Key differences:**
+- Studio Series has shorter rehearsals (4-week default), 1-day auditions (vs 3-day Mainstage weekend)
+- Several marketing tasks are marked as optional (press release, poster, headshots, poster run)
+- Studio-specific tasks added (schedule rehearsals before auditions, Select "off book" date, Send ticket info to Box Office, etc.)
+- Separate template sheets: `📋 Mainstage Tasks` and `📋 Studio Series Tasks`
+- Auto-derived Audition End Date: same day for Studio Series, +2 days for Mainstage
+
+---
+
 ### ~~Slack prompt for Readthrough date~~ ✅ Implemented
 After the last day of auditions, automatically post a message in the show's Slack channel with a Slack date picker asking the Stage Manager / Director to provide the readthrough date. When they select a date via the picker, the system updates the Show Setup sheet and the daily run reactivates any readthrough-dependent tasks that were skipped.
 
@@ -13,6 +25,16 @@ After the last day of auditions, automatically post a message in the show's Slac
 - `doPost` handler in WebApp.gs processes the Slack interaction and writes the date to Show Setup
 - `_reactivateReadthroughTasks()` in ReminderEngine.gs detects newly-set dates and recomputes deadlines
 - **Requires**: Slack app Interactivity enabled with Request URL set to the Apps Script web app URL
+
+---
+
+### ~~Distinguish optional tasks in reminders~~ ✅ Implemented
+Optional tasks (marked with `optional: true` in the task template) now get the full treatment:
+- **Different emoji** (❔ instead of 📋) and purple color in Slack messages
+- **Softer tone**: includes "_This task is optional — skip it if not applicable to your production._"
+- **Skip button** (⏭️) alongside Mark Done in Slack, sets task to Skipped status
+- **Advance reminders only**: optional tasks never escalate to urgent or overdue
+- **Email**: subject prefixed with `[Optional]`, body includes an optional note
 
 ---
 

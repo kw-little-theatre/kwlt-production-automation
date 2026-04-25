@@ -5,11 +5,22 @@ Mirrors Config.gs constants. This is the Python equivalent of the
 Apps Script configuration constants.
 """
 
+# ─── Production Types ─────────────────────────────────────────────────────────
+
+class PRODUCTION_TYPE:
+    MAINSTAGE = "Mainstage"
+    STUDIO_SERIES = "Studio Series"
+
+
+PRODUCTION_TYPES_LIST = [PRODUCTION_TYPE.MAINSTAGE, PRODUCTION_TYPE.STUDIO_SERIES]
+
 # ─── Sheet Names ──────────────────────────────────────────────────────────────
 
 SHEET_CONFIG = "⚙️ Config"
 SHEET_SHOW_SETUP = "🎭 Show Setup"
-SHEET_TASK_TEMPLATE = "📋 Task Template"
+SHEET_TASK_TEMPLATE = "📋 Task Template"           # legacy name (pre-production-type)
+SHEET_TASK_TEMPLATE_MAINSTAGE = "📋 Mainstage Tasks"
+SHEET_TASK_TEMPLATE_STUDIO = "📋 Studio Series Tasks"
 SHEET_MSG_TEMPLATES = "✉️ Message Templates"
 SHEET_SEASON_OVERVIEW = "📅 Season Overview"
 SHEET_SEND_LOG = "📨 Send Log"

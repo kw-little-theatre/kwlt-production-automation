@@ -3,13 +3,13 @@
     "attachments": [
       {
         "color": "#2563eb",
-        "fallback": "📋 Upcoming: Submit poster for approval to Show Support representative (Producer) — due 2026-05-01",
+        "fallback": "\ud83d\udccb Upcoming: Submit poster for approval to Show Support representative (Producer) \u2014 due 2026-05-01",
         "blocks": [
           {
             "type": "section",
             "text": {
               "type": "mrkdwn",
-              "text": "📋 *Upcoming:* Submit poster for approval to Show Support representative\n👤 *Responsible:* Producer  |  📅 *Due:* 2026-05-01"
+              "text": "\ud83d\udccb *Upcoming:* Submit poster for approval to Show Support representative\n\ud83d\udc64 *Responsible:* Producer  |  \ud83d\udcc5 *Due:* 2026-05-01"
             }
           },
           {
@@ -17,7 +17,11 @@
             "elements": [
               {
                 "type": "button",
-                "text": { "type": "plain_text", "text": "✅ Mark Done", "emoji": true },
+                "text": {
+                  "type": "plain_text",
+                  "text": "\u2705 Mark Done",
+                  "emoji": true
+                },
                 "style": "primary",
                 "action_id": "mark_done:Test%20Show:Submit%20poster%20for%20approval%20to%20Show%20Support%20representative"
               }
@@ -26,19 +30,19 @@
         ]
       }
     ],
-    "thread_text": "*Deadline:* 2026-05-01\n*Status:* 🗓️ 5 days remaining\n\n📌 *Timing:* 6 weeks before opening (1 week before printing)\n📖 <https://example.com/handbook|Production Handbook>\n📁 <https://example.com/resources|Show Resources Folder>"
+    "thread_text": "*Deadline:* 2026-05-01\n*Status:* \ud83d\uddd3\ufe0f 5 days remaining\n\n\ud83d\udccc *Timing:* 6 weeks before opening (1 week before printing)\n\ud83d\udcd6 <https://example.com/handbook|Production Handbook>\n\ud83d\udcc1 <https://example.com/resources|Show Resources Folder>"
   },
   "urgent": {
     "attachments": [
       {
         "color": "#f59e0b",
-        "fallback": "⚠️ Due tomorrow: Submit poster for approval to Show Support representative (Producer) — due 2026-05-01",
+        "fallback": "\u26a0\ufe0f Due tomorrow: Submit poster for approval to Show Support representative (Producer) \u2014 due 2026-05-01",
         "blocks": [
           {
             "type": "section",
             "text": {
               "type": "mrkdwn",
-              "text": "⚠️ *Due tomorrow:* Submit poster for approval to Show Support representative\n👤 *Responsible:* Producer  |  📅 *Due:* 2026-05-01"
+              "text": "\u26a0\ufe0f *Due tomorrow:* Submit poster for approval to Show Support representative\n\ud83d\udc64 *Responsible:* Producer  |  \ud83d\udcc5 *Due:* 2026-05-01"
             }
           },
           {
@@ -46,7 +50,11 @@
             "elements": [
               {
                 "type": "button",
-                "text": { "type": "plain_text", "text": "✅ Mark Done", "emoji": true },
+                "text": {
+                  "type": "plain_text",
+                  "text": "\u2705 Mark Done",
+                  "emoji": true
+                },
                 "style": "primary",
                 "action_id": "mark_done:Test%20Show:Submit%20poster%20for%20approval%20to%20Show%20Support%20representative"
               }
@@ -55,19 +63,19 @@
         ]
       }
     ],
-    "thread_text": "*Deadline:* 2026-05-01\n*Status:* 🗓️ 1 days remaining\n\n📌 *Timing:* 6 weeks before opening (1 week before printing)\n📖 <https://example.com/handbook|Production Handbook>\n📁 <https://example.com/resources|Show Resources Folder>"
+    "thread_text": "*Deadline:* 2026-05-01\n*Status:* \ud83d\uddd3\ufe0f 1 days remaining\n\n\ud83d\udccc *Timing:* 6 weeks before opening (1 week before printing)\n\ud83d\udcd6 <https://example.com/handbook|Production Handbook>\n\ud83d\udcc1 <https://example.com/resources|Show Resources Folder>"
   },
   "overdue": {
     "attachments": [
       {
         "color": "#dc2626",
-        "fallback": "🚨 Overdue: Submit poster for approval to Show Support representative (Producer) — due 2026-05-01",
+        "fallback": "\ud83d\udea8 Overdue: Submit poster for approval to Show Support representative (Producer) \u2014 due 2026-05-01",
         "blocks": [
           {
             "type": "section",
             "text": {
               "type": "mrkdwn",
-              "text": "🚨 *Overdue:* Submit poster for approval to Show Support representative\n👤 *Responsible:* Producer  |  📅 *Due:* 2026-05-01"
+              "text": "\ud83d\udea8 *Overdue:* Submit poster for approval to Show Support representative\n\ud83d\udc64 *Responsible:* Producer  |  \ud83d\udcc5 *Due:* 2026-05-01"
             }
           },
           {
@@ -75,7 +83,11 @@
             "elements": [
               {
                 "type": "button",
-                "text": { "type": "plain_text", "text": "✅ Mark Done", "emoji": true },
+                "text": {
+                  "type": "plain_text",
+                  "text": "\u2705 Mark Done",
+                  "emoji": true
+                },
                 "style": "primary",
                 "action_id": "mark_done:Test%20Show:Submit%20poster%20for%20approval%20to%20Show%20Support%20representative"
               }
@@ -84,6 +96,6 @@
         ]
       }
     ],
-    "thread_text": "*Deadline:* 2026-05-01\n*Status:* 🚨 3 days overdue\n\n📌 *Timing:* 6 weeks before opening (1 week before printing)\n📖 <https://example.com/handbook|Production Handbook>\n📁 <https://example.com/resources|Show Resources Folder>"
+    "thread_text": "*Deadline:* 2026-05-01\n*Status:* \ud83d\udea8 3 days overdue\n\n\ud83d\udccc *Timing:* 6 weeks before opening (1 week before printing)\n\ud83d\udcd6 <https://example.com/handbook|Production Handbook>\n\ud83d\udcc1 <https://example.com/resources|Show Resources Folder>"
   }
 }
