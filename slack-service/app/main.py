@@ -49,6 +49,13 @@ _sheets_instance = None
 _slack_instance = None
 
 
+def _sanitize_slack_result(result: dict) -> dict:
+    """Strip internal error details from Slack API results before returning to caller."""
+    if result.get("ok"):
+        return {"ok": True, "ts": result.get("ts", "")}
+    return {"ok": False, "error": "Slack send failed"}
+
+
 def _get_sheets():
     """Get or create the SheetRepository singleton."""
     global _sheets_instance
@@ -255,7 +262,7 @@ def reminders_send(context: TaskContext):
                 thread_ts=parent_result["ts"],
             )
 
-        return parent_result
+        return _sanitize_slack_result(parent_result)
     except Exception:
         logger.error("Error sending reminder")
         return {"ok": False, "error": "Internal error sending reminder"}
@@ -301,7 +308,7 @@ def reminders_digest(items: list[DigestItem]):
         text += f"_{sent}/{len(items)} reminders sent successfully._"
 
         result = slack.send_message(settings.show_support_channel, text=text)
-        return result
+        return _sanitize_slack_result(result)
     except Exception:
         logger.error("Error sending digest")
         return {"ok": False, "error": "Internal error sending digest"}
@@ -321,7 +328,7 @@ def reminders_readthrough_prompt(show_name: str, channel: str):
     try:
         msg = build_readthrough_date_prompt(show_name)
         result = slack.send_message(channel, attachments=msg["attachments"])
-        return result
+        return _sanitize_slack_result(result)
     except Exception:
         logger.error("Error sending readthrough prompt")
         return {"ok": False, "error": "Internal error sending readthrough prompt"}
