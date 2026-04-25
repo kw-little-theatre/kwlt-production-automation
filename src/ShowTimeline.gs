@@ -75,8 +75,11 @@ function createShowTimeline(showName) {
     return 'Tab "' + tabName + '" already exists.';
   }
 
-  // Get anchor dates for this show
-  const anchors = _getAnchorDates(ss, showName);
+  // Determine production type for this show
+  const productionType = _getShowProductionType(ss, showName);
+
+  // Get anchor dates for this show (type-aware derivation)
+  const anchors = _getAnchorDates(ss, showName, productionType);
   if (!anchors) {
     throw new Error('Could not find show "' + showName + '" in Show Setup, or dates are missing. Please fill in the anchor dates and try again.');
   }
@@ -104,7 +107,7 @@ function createShowTimeline(showName) {
   sheet.setFrozenRows(1);
 
   // Build task rows
-  const tasks = getTaskTemplateData();
+  const tasks = getTaskTemplateForType(productionType);
   const rows = [];
 
   for (const task of tasks) {
@@ -209,16 +212,45 @@ function createShowTimeline(showName) {
   // Mark as created in Show Setup
   _markTimelineCreated(ss, showName);
 
-  return '✅ Timeline for "' + showName + '" created with ' + rows.length + ' tasks. Review dates in the "' + tabName + '" tab, then set Active? = TRUE.';
+  return '✅ Timeline for "' + showName + '" (' + productionType + ') created with ' + rows.length + ' tasks. Review dates in the "' + tabName + '" tab, then set Active? = TRUE.';
 }
 
-// ─── Anchor Date Retrieval ────────────────────────────────────────────────────
+/**
+ * Reads the production type for a show from the Show Setup sheet.
+ * Defaults to Mainstage if not set or column is missing.
+ * @param {SpreadsheetApp.Spreadsheet} ss
+ * @param {string} showName
+ * @returns {string} — value from PRODUCTION_TYPE constant
+ */
+function _getShowProductionType(ss, showName) {
+  const sheet = ss.getSheetByName(SHEET_SHOW_SETUP);
+  if (!sheet) return PRODUCTION_TYPE.MAINSTAGE;
+
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const typeCol = headers.indexOf('Production Type');
+  if (typeCol === -1) return PRODUCTION_TYPE.MAINSTAGE;
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === showName) {
+      const val = String(data[i][typeCol] || '').trim();
+      if (val === PRODUCTION_TYPE.STUDIO_SERIES) return PRODUCTION_TYPE.STUDIO_SERIES;
+      return PRODUCTION_TYPE.MAINSTAGE;
+    }
+  }
+  return PRODUCTION_TYPE.MAINSTAGE;
+}
+
+// ─── Anchor Date Retrieval ────────────────────────────────────────────────
 
 /**
  * Reads anchor dates for a show from the Show Setup sheet.
  * Returns a map of { anchorLabel: Date } or null if not found.
+ * @param {SpreadsheetApp.Spreadsheet} ss
+ * @param {string} showName
+ * @param {string} [productionType] — optional, for type-aware auto-derivation
  */
-function _getAnchorDates(ss, showName) {
+function _getAnchorDates(ss, showName, productionType) {
   const sheet = ss.getSheetByName(SHEET_SHOW_SETUP);
   const data = sheet.getDataRange().getValues();
   const headers = data[0];
@@ -250,10 +282,13 @@ function _getAnchorDates(ss, showName) {
 
   // ── Auto-derive missing dates from the ones we have ──────────────────
 
-  // Audition End = Audition Start + 2 days (3-day audition weekend)
+  // Audition End auto-derivation depends on production type:
+  //   Studio Series: same day (1-day audition)
+  //   Mainstage: + 2 days (3-day audition weekend)
   if (!anchors[ANCHOR.AUDITION_END] && anchors[ANCHOR.AUDITION_START]) {
     const d = new Date(anchors[ANCHOR.AUDITION_START]);
-    d.setDate(d.getDate() + 2);
+    const offset = (productionType === PRODUCTION_TYPE.STUDIO_SERIES) ? 0 : 2;
+    d.setDate(d.getDate() + offset);
     anchors[ANCHOR.AUDITION_END] = d;
   }
 

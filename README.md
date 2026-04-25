@@ -4,7 +4,7 @@ Automated reminder system for Kitchener-Waterloo Little Theatre production teams
 
 ## What It Does
 
-- **Computes all production deadlines** from just 4 anchor dates using the timing rules from the KWLT Mainstage Runbook
+- **Computes all production deadlines** from just 4 anchor dates using the timing rules from the KWLT Runbooks (supports both **Mainstage** and **Studio Series** production types)
 - **Sends automated reminders** via Slack (per-show channels) and email (to show email addresses) as deadlines approach
 - **One-click "Mark Done"** — production team members can mark tasks complete directly from Slack buttons (with undo) or email links
 - **Escalates overdue tasks** to the Show Support Committee's Slack channel
@@ -21,8 +21,9 @@ Automated reminder system for Kitchener-Waterloo Little Theatre production teams
 │                                                              │
 │  ⚙️ Config          — Non-sensitive settings (reminder       │
 │                       timing, feature toggles, handbook URL) │
-│  🎭 Show Setup      — Anchor dates, show email, contacts    │
-│  📋 Task Template   — Master task list with timing rules     │
+│  🎭 Show Setup      — Production type, anchor dates, contacts │
+│  📋 Mainstage Tasks  — Mainstage task list with timing rules   │
+│  📋 Studio Series Tasks — Studio Series task list              │
 │  ✉️ Message Templates — Editable reminder text               │
 │  📅 Season Overview  — Cross-show deadline dashboard         │
 │  📨 Send Log         — History of all sent reminders         │
@@ -206,11 +207,12 @@ clasp push
 1. Go to the **🎭 Show Setup** sheet
 2. Fill in one row per show:
    - **Show Name**: e.g., "Hamlet"
+   - **Production Type**: select **Mainstage** or **Studio Series** from the dropdown (defaults to Mainstage if left blank)
    - **Slack Channel**: e.g., `#show-hamlet`
    - **Show Email**: e.g., `hamlet@kwlt.org`
    - **Resources Folder URL**: link to the show's Google Drive resources folder
    - **Required dates** (green headers, marked `*`): Audition Start, Build/Possession, Opening Night, Closing Night
-   - **Auto-derived dates** (blue headers, marked `(auto)`): leave blank or override — Audition End (+2 days), Tech Weekend Start (opening night -6 days), Tech Weekend End (+1 day)
+   - **Auto-derived dates** (blue headers, marked `(auto)`): leave blank or override — Audition End (Mainstage: +2 days for 3-day weekend; Studio Series: same day), Tech Weekend Start (opening night -6 days), Tech Weekend End (+1 day)
    - **Optional dates** (gray headers, marked `(opt)`): Readthrough — if left blank, the system will prompt the show's Slack channel with a date picker daily after auditions close; dependent tasks are activated when the date is set
 3. Click **🎭 KWLT Automation → 📋 Generate Show Task Tabs**
    - Confirms the list of shows, then creates all timeline tabs at once
@@ -242,7 +244,7 @@ clasp push
 ## Customization
 
 ### Adding/removing tasks
-Edit the **📋 Task Template** sheet (or `TaskTemplateData.gs` for permanent changes). New shows will pick up the updated template. Existing show tabs are not affected — edit those directly.
+Edit the **📋 Mainstage Tasks** or **📋 Studio Series Tasks** sheet (or `TaskTemplateData.gs` for permanent changes). New shows will pick up the updated template. Existing show tabs are not affected — edit those directly.
 
 ### Changing reminder timing
 In ⚙️ Config:
@@ -263,8 +265,8 @@ Edit the **✉️ Message Templates** sheet. Available placeholders:
 ```
 src/
 ├── appsscript.json       — Apps Script manifest (timezone, scopes)
-├── Config.gs             — Constants and configuration
-├── TaskTemplateData.gs   — Master task list from the KWLT Runbook
+├── Config.gs             — Constants, configuration, production types
+├── TaskTemplateData.gs   — Master task lists (Mainstage + Studio Series)
 ├── Setup.gs              — Initial setup, menu, sheet creation
 ├── ShowTimeline.gs       — Per-show timeline generation & date computation
 ├── ReminderEngine.gs     — Daily reminder logic, template rendering
@@ -298,7 +300,8 @@ env.sh                    — Switch clasp between prod/test environments
 ## Original Resources
 
 The `resources/` folder (not committed) contains the original KWLT production documentation that this automation is based on:
-- **KWLT Runbook Template: Mainstage Production** — the task timeline this system automates
+- **KWLT Runbook Template: Mainstage Production** — the Mainstage task timeline
+- **KWLT Runbook Template: Studio Series Production** — the Studio Series task timeline
 - **KWLT Runbook Template: Season** — season-level tasks (manual for now)
 - **KWLT Production Handbook** — detailed role descriptions and processes
 - **KWLT Policy Manual** — organizational policies

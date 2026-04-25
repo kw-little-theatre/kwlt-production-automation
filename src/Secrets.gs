@@ -41,6 +41,12 @@ const SECRETS = [
     description: 'Membership Director email (e.g., membership@kwlt.org) — receives readthrough date notifications',
     sensitive: false,
   },
+  {
+    key: 'PYTHON_SERVICE_URL',
+    label: 'Python Service URL',
+    description: 'URL of the standalone Slack service (e.g., https://kwlt-slack.run.app) — leave blank to send Slack directly from Apps Script',
+    sensitive: false,
+  },
 ];
 
 // ─── Manage Secrets Menu ──────────────────────────────────────────────────────

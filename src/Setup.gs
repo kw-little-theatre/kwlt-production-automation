@@ -36,7 +36,8 @@ function initialSetup() {
 
   _createConfigSheet(ss);
   _createShowSetupSheet(ss);
-  _createTaskTemplateSheet(ss);
+  _createTaskTemplateSheetMainstage(ss);
+  _createTaskTemplateSheetStudio(ss);
   _createMessageTemplatesSheet(ss);
   _createSeasonOverviewSheet(ss);
   _createSendLogSheet(ss);
@@ -105,6 +106,7 @@ function _createShowSetupSheet(ss) {
 
   const headers = [
     'Show Name',
+    'Production Type',
     'Slack Channel',
     'Show Email',
     'Resources Folder URL',
@@ -130,28 +132,39 @@ function _createShowSetupSheet(ss) {
   sheet.setFrozenRows(1);
 
   // Color-code date header groups
-  // Required = green (cols 5-8)
-  sheet.getRange(1, 5, 1, 4).setBackground('#bbf7d0');
-  // Auto-derived = light blue (cols 9-11)
-  sheet.getRange(1, 9, 1, 3).setBackground('#bfdbfe');
-  // Optional = light gray (col 12)
-  sheet.getRange(1, 12, 1, 1).setBackground('#e5e7eb');
+  // Required = green (cols 6-9)
+  sheet.getRange(1, 6, 1, 4).setBackground('#bbf7d0');
+  // Auto-derived = light blue (cols 10-12)
+  sheet.getRange(1, 10, 1, 3).setBackground('#bfdbfe');
+  // Optional = light gray (col 13)
+  sheet.getRange(1, 13, 1, 1).setBackground('#e5e7eb');
 
-  // Format date columns (5-12)
-  for (let i = 5; i <= 12; i++) {
+  // Format date columns (6-13)
+  for (let i = 6; i <= 13; i++) {
     sheet.setColumnWidth(i, 160);
   }
   sheet.setColumnWidth(1, 200); // Show Name
-  sheet.setColumnWidth(2, 180); // Slack Channel
+  sheet.setColumnWidth(2, 140); // Production Type
+  sheet.setColumnWidth(3, 180); // Slack Channel
 
-  // Add data validation for date columns (cols 5-12)
+  // Add data validation for Production Type column (col 2)
+  const typeRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(PRODUCTION_TYPES_LIST)
+    .setAllowInvalid(false)
+    .setHelpText('Select the production type')
+    .build();
+  sheet.getRange(2, 2, 19, 1).setDataValidation(typeRule);
+  // Default to Mainstage
+  sheet.getRange(2, 2, 19, 1).setValue('');
+
+  // Add data validation for date columns (cols 6-13)
   const dateRule = SpreadsheetApp.newDataValidation()
     .requireDate()
     .setAllowInvalid(false)
     .setHelpText('Enter a date (YYYY-MM-DD)')
     .build();
 
-  for (let col = 5; col <= 12; col++) {
+  for (let col = 6; col <= 13; col++) {
     sheet.getRange(2, col, 19, 1).setDataValidation(dateRule);
     sheet.getRange(2, col, 19, 1).setNumberFormat('yyyy-mm-dd');
   }
@@ -159,15 +172,35 @@ function _createShowSetupSheet(ss) {
   return sheet;
 }
 
-// ─── Task Template Sheet ──────────────────────────────────────────────────────
+// ─── Task Template Sheets ─────────────────────────────────────────────────────
 
 function _createTaskTemplateSheet(ss) {
-  let sheet = ss.getSheetByName(SHEET_TASK_TEMPLATE);
+  // Legacy: create both new sheets instead
+  _createTaskTemplateSheetMainstage(ss);
+  _createTaskTemplateSheetStudio(ss);
+}
+
+function _createTaskTemplateSheetMainstage(ss) {
+  let sheet = ss.getSheetByName(SHEET_TASK_TEMPLATE_MAINSTAGE);
   if (sheet) return sheet;
 
-  sheet = ss.insertSheet(SHEET_TASK_TEMPLATE);
+  sheet = ss.insertSheet(SHEET_TASK_TEMPLATE_MAINSTAGE);
   sheet.setTabColor('#d97706');
+  _populateTaskTemplateSheet(sheet, getTaskTemplateData());
+  return sheet;
+}
 
+function _createTaskTemplateSheetStudio(ss) {
+  let sheet = ss.getSheetByName(SHEET_TASK_TEMPLATE_STUDIO);
+  if (sheet) return sheet;
+
+  sheet = ss.insertSheet(SHEET_TASK_TEMPLATE_STUDIO);
+  sheet.setTabColor('#7c3aed');
+  _populateTaskTemplateSheet(sheet, getStudioSeriesTaskTemplateData());
+  return sheet;
+}
+
+function _populateTaskTemplateSheet(sheet, tasks) {
   const headers = [
     'Task', 'Responsible Party', 'General Rule', 'Anchor Reference',
     'Offset (days)', 'Notify Via', 'Recurring?', 'Phase',
@@ -177,8 +210,6 @@ function _createTaskTemplateSheet(ss) {
   sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold').setBackground('#fef3c7');
   sheet.setFrozenRows(1);
 
-  // Populate from template data
-  const tasks = getTaskTemplateData();
   const rows = tasks.map(t => [
     t.task,
     t.responsible,
@@ -198,8 +229,6 @@ function _createTaskTemplateSheet(ss) {
   sheet.setColumnWidth(2, 200);
   sheet.setColumnWidth(3, 250);
   sheet.setColumnWidth(4, 180);
-
-  return sheet;
 }
 
 // ─── Message Templates Sheet ──────────────────────────────────────────────────
@@ -266,7 +295,7 @@ function _createSeasonOverviewSheet(ss) {
   sheet.setTabColor('#dc2626');
 
   const headers = [
-    'Show', 'Task', 'Responsible', 'Deadline', 'Status',
+    'Show', 'Type', 'Task', 'Responsible', 'Deadline', 'Status',
     'Days Until/Since', 'Phase',
   ];
 
@@ -275,12 +304,13 @@ function _createSeasonOverviewSheet(ss) {
   sheet.setFrozenRows(1);
 
   sheet.setColumnWidth(1, 180);
-  sheet.setColumnWidth(2, 400);
-  sheet.setColumnWidth(3, 200);
-  sheet.setColumnWidth(4, 120);
-  sheet.setColumnWidth(5, 180);
-  sheet.setColumnWidth(6, 120);
-  sheet.setColumnWidth(7, 130);
+  sheet.setColumnWidth(2, 120);
+  sheet.setColumnWidth(3, 400);
+  sheet.setColumnWidth(4, 200);
+  sheet.setColumnWidth(5, 120);
+  sheet.setColumnWidth(6, 180);
+  sheet.setColumnWidth(7, 120);
+  sheet.setColumnWidth(8, 130);
 
   // Add note at top
   sheet.getRange(2, 1).setValue('Run "Refresh Season Overview" from the 🎭 KWLT Automation menu to populate this sheet.');

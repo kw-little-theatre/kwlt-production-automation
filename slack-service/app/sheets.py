@@ -160,6 +160,51 @@ class SheetRepository:
             message=f'Task "{task_text}" not found in the {show_name} timeline.',
         )
 
+    def mark_task_skipped(self, show_name: str, task_text: str) -> MarkTaskResult:
+        """
+        Finds a task in a show's timeline tab and marks it Skipped.
+        Used for optional tasks that a production team decides not to do.
+        """
+        sheet = self._get_show_sheet(show_name)
+        if not sheet:
+            return MarkTaskResult(
+                success=False,
+                message=f'Show tab "{SHOW_TAB_PREFIX}{show_name}" not found.',
+            )
+
+        data = sheet.get_all_values()
+
+        for row_idx, raw_row in enumerate(data[1:], start=2):
+            row = self._pad_row(raw_row)
+            current_task = str(row[COL.TASK])
+            current_status = row[COL.STATUS]
+
+            if current_task == task_text or task_text in current_task or current_task in task_text:
+                if current_status == STATUS.SKIPPED:
+                    return MarkTaskResult(success=True, message="Task was already skipped.")
+
+                now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                existing_notes = row[COL.NOTES]
+                new_notes = (
+                    (existing_notes + "\n" if existing_notes else "")
+                    + f"Skipped via Slack at {now_str}"
+                )
+
+                sheet.batch_update([
+                    {"range": gspread.utils.rowcol_to_a1(row_idx, COL.STATUS + 1), "values": [[STATUS.SKIPPED]]},
+                    {"range": gspread.utils.rowcol_to_a1(row_idx, COL.LAST_NOTIFIED + 1), "values": [[now_str]]},
+                    {"range": gspread.utils.rowcol_to_a1(row_idx, COL.NOTES + 1), "values": [[new_notes]]},
+                ])
+
+                self.log_send(show_name, current_task, row[COL.RESPONSIBLE], "slack", "skip-task", True)
+
+                return MarkTaskResult(success=True, message="Task skipped.")
+
+        return MarkTaskResult(
+            success=False,
+            message=f'Task "{task_text}" not found in the {show_name} timeline.',
+        )
+
     # ─── Send Log ──────────────────────────────────────────────────────
 
     def log_send(

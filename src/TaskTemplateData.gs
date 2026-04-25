@@ -1,10 +1,9 @@
 /**
  * KWLT Production Automation — Task Template Data
  *
- * This is the master list of tasks derived from the KWLT Mainstage Production
- * Runbook. Each task specifies which anchor date it's relative to and the
- * offset in days. The setup script writes these into the "📋 Task Template"
- * sheet, from which per-show timelines are generated.
+ * Master task lists for each production type. Each task specifies which anchor
+ * date it's relative to and the offset in days. The setup script writes these
+ * into the template sheets, from which per-show timelines are generated.
  *
  * Fields per task:
  *   task         — description of the task
@@ -17,6 +16,25 @@
  *   phase        — which phase this belongs to (for recurring tasks & grouping)
  */
 
+/**
+ * Returns the task template data for a given production type.
+ * @param {string} productionType — value from PRODUCTION_TYPE constant
+ * @returns {Object[]} — array of task template objects
+ */
+function getTaskTemplateForType(productionType) {
+  switch (productionType) {
+    case PRODUCTION_TYPE.STUDIO_SERIES:
+      return getStudioSeriesTaskTemplateData();
+    case PRODUCTION_TYPE.MAINSTAGE:
+    default:
+      return getTaskTemplateData();
+  }
+}
+
+/**
+ * Mainstage task template — the original task list from the KWLT Mainstage
+ * Production Runbook.
+ */
 function getTaskTemplateData() {
   return [
     // ── Pre-Production Phase ───────────────────────────────────────────────
@@ -45,19 +63,8 @@ function getTaskTemplateData() {
     },
 
     // ── Audition Preparation Phase ──────────────────────────────────────────
-    {      task: 'Share resource folder and policies with production team',
-      responsible: 'Show Support',
-      generalRule: '3 days before auditions',
-      anchorRef: ANCHOR.AUDITION_START,
-      offsetDays: -3,
-      notifyVia: 'both',
-      recurring: false,
-      phase: 'Audition Prep',
-      autoComplete: true,
-      emailBody: 'Hello,\n\nAuditions are fast approaching for {{SHOW_NAME}}! The production resources folder has been shared with you and can be found here:\n\n{{RESOURCES_URL}}\n\nMost importantly, please review the policy manual (available in the resources folder) before auditions, as there are several guidelines, deadlines, and rules that the production team will be expected to adhere to throughout the process.\n\nIf you have any questions, please reach out to your Show Support representative.\n\n-- KWLT Show Support',
-      emailSubject: '[KWLT] Resource Folder and Policies -- {{SHOW_NAME}}',
-    },
-    {      task: 'Set up audition pre-booking form and confirmation/reminder system (if doing pre-bookings)',
+    {
+      task: 'Set up audition pre-booking form and confirmation/reminder system (if doing pre-bookings)',
       responsible: 'Stage Manager',
       generalRule: '3 weeks before auditions',
       anchorRef: ANCHOR.AUDITION_START,
@@ -216,6 +223,16 @@ function getTaskTemplateData() {
       phase: 'Rehearsals',
     },
     {
+      task: 'Collect information for program from cast & crew',
+      responsible: 'Producer',
+      generalRule: '1 month before tech weekend',
+      anchorRef: ANCHOR.TECH_WEEKEND_START,
+      offsetDays: -30,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Rehearsals',
+    },
+    {
       task: 'Invite the board to your second dress rehearsal',
       responsible: 'Director',
       generalRule: '2 weeks before opening',
@@ -271,12 +288,32 @@ function getTaskTemplateData() {
       phase: 'Build & Tech',
     },
     {
+      task: 'Plan tech weekend tasks',
+      responsible: 'Production team',
+      generalRule: 'Before tech weekend',
+      anchorRef: ANCHOR.TECH_WEEKEND_START,
+      offsetDays: -7,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Build & Tech',
+    },
+    {
       task: 'Invite Show Support committee representative to tech weekend Day 1',
       responsible: 'Stage Manager',
       generalRule: 'Start of first day of tech weekend',
       anchorRef: ANCHOR.TECH_WEEKEND_START,
       offsetDays: 0,
       notifyVia: 'both',
+      recurring: false,
+      phase: 'Build & Tech',
+    },
+    {
+      task: 'Set sound & light cues',
+      responsible: 'Technical Director',
+      generalRule: 'Build week, due by tech weekend',
+      anchorRef: ANCHOR.TECH_WEEKEND_START,
+      offsetDays: 0,
+      notifyVia: 'slack',
       recurring: false,
       phase: 'Build & Tech',
     },
@@ -297,6 +334,26 @@ function getTaskTemplateData() {
       anchorRef: ANCHOR.TECH_WEEKEND_END,
       offsetDays: 0,
       notifyVia: 'both',
+      recurring: false,
+      phase: 'Build & Tech',
+    },
+    {
+      task: 'Plan schedule for show nights',
+      responsible: 'Production team',
+      generalRule: 'By the end of tech weekend',
+      anchorRef: ANCHOR.TECH_WEEKEND_END,
+      offsetDays: 0,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Build & Tech',
+    },
+    {
+      task: 'Run cue to cue',
+      responsible: 'Stage Manager',
+      generalRule: 'Tech weekend',
+      anchorRef: ANCHOR.TECH_WEEKEND_END,
+      offsetDays: 0,
+      notifyVia: 'slack',
       recurring: false,
       phase: 'Build & Tech',
     },
@@ -337,17 +394,417 @@ function getTaskTemplateData() {
       phase: 'Post-Show',
     },
     {
-      task: 'Send feedback survey to cast and crew',
-      responsible: 'Show Support',
-      generalRule: '1-2 days after closing',
+      task: 'Submit receipts for reimbursement',
+      responsible: 'Production Team',
+      generalRule: 'Within 1 month of close',
       anchorRef: ANCHOR.CLOSING_NIGHT,
-      offsetDays: 2,
+      offsetDays: 30,
+      notifyVia: 'email',
+      recurring: false,
+      phase: 'Post-Show',
+    },
+  ];
+}
+
+// ─── Studio Series Task Template ───────────────────────────────────────────────
+
+/**
+ * Studio Series task template — derived from the KWLT Studio Series
+ * Production Runbook. Shorter runs, shorter tech periods, shorter rehearsals.
+ * Tasks marked "optional for studio series" are included with notes.
+ */
+function getStudioSeriesTaskTemplateData() {
+  return [
+    // ── Pre-Production Phase ───────────────────────────────────────────────
+    {
+      task: 'Book audition days with Rentals',
+      responsible: 'Director',
+      generalRule: '1 month before auditions',
+      anchorRef: ANCHOR.AUDITION_START,
+      offsetDays: -30,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Pre-Production',
+    },
+    {
+      task: 'Hold first Production meeting (invite Show Support Committee representative)',
+      responsible: 'Production team',
+      generalRule: '1-2 months before auditions',
+      anchorRef: ANCHOR.AUDITION_START,
+      offsetDays: -45,
+      notifyVia: 'both',
+      recurring: false,
+      phase: 'Pre-Production',
+      emailBody: 'Hello,\n\nAs auditions approach for {{SHOW_NAME}}, this is a reminder to schedule your first production meeting and invite your Show Support Committee representative. If you have already had this meeting, please let the Show Support Committee know, as they have information to pass along.\n\nIf you have questions, please reach out to your Show Support representative.\n\n-- KWLT Show Support',
+      emailSubject: '[KWLT] First Production Meeting -- {{SHOW_NAME}}',
+    },
+    {
+      task: 'Create plan for rehearsals (consider pre-scheduling all rehearsals for studio series)',
+      responsible: 'Stage Manager and Director',
+      generalRule: 'By the first production meeting',
+      anchorRef: ANCHOR.AUDITION_START,
+      offsetDays: -45,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Pre-Production',
+    },
+    {
+      task: 'Create plan and deadlines for technical design elements',
+      responsible: 'Stage Manager and Technical Director',
+      generalRule: 'By the first production meeting',
+      anchorRef: ANCHOR.AUDITION_START,
+      offsetDays: -45,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Pre-Production',
+    },
+
+    // ── Audition Preparation Phase ──────────────────────────────────────────
+    {
+      task: 'Set up audition pre-booking form and confirmation/reminder system (if doing pre-bookings)',
+      responsible: 'Stage Manager',
+      generalRule: '3 weeks before auditions',
+      anchorRef: ANCHOR.AUDITION_START,
+      offsetDays: -21,
+      notifyVia: 'both',
+      recurring: false,
+      phase: 'Audition Prep',
+    },
+    {
+      task: 'Create marketing materials for auditions',
+      responsible: 'Producer',
+      generalRule: '3 weeks before auditions',
+      anchorRef: ANCHOR.AUDITION_START,
+      offsetDays: -21,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Audition Prep',
+    },
+    {
+      task: 'Decide on format for auditions',
+      responsible: 'Director and Stage Manager',
+      generalRule: 'By when audition form releases (3 weeks before auditions)',
+      anchorRef: ANCHOR.AUDITION_START,
+      offsetDays: -21,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Audition Prep',
+    },
+    {
+      task: 'Schedule rehearsals & readthrough (invite Show Support rep and Membership Director)',
+      responsible: 'Stage Manager',
+      generalRule: 'By when audition form releases (can schedule before auditions for studio series)',
+      anchorRef: ANCHOR.AUDITION_START,
+      offsetDays: -19,
+      notifyVia: 'both',
+      recurring: false,
+      phase: 'Audition Prep',
+    },
+    {
+      task: 'Receive keys and get walkthrough of 44 Gaukel & 9 Princess',
+      responsible: 'Stage Manager',
+      generalRule: '1 week before auditions',
+      anchorRef: ANCHOR.AUDITION_START,
+      offsetDays: -7,
+      notifyVia: 'email',
+      recurring: false,
+      phase: 'Audition Prep',
+    },
+    {
+      task: 'Create rough marketing plan for the show and review with Communications Committee',
+      responsible: 'Producer',
+      generalRule: 'Deadline is auditions',
+      anchorRef: ANCHOR.AUDITION_START,
+      offsetDays: -7,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Audition Prep',
+    },
+    {
+      task: 'Find audition wranglers',
+      responsible: 'Production Team',
+      generalRule: 'Deadline is auditions',
+      anchorRef: ANCHOR.AUDITION_START,
+      offsetDays: -7,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Audition Prep',
+    },
+    {
+      task: 'Prepare in-audition materials (audition form, info sheets, printed monologues, scripts)',
+      responsible: 'Stage Manager',
+      generalRule: 'Deadline is auditions',
+      anchorRef: ANCHOR.AUDITION_START,
+      offsetDays: -3,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Audition Prep',
+    },
+
+    // ── Auditions & Casting Phase ───────────────────────────────────────────
+    {
+      task: 'Obtain Vulnerable Sector Checks for show leadership (if minors in cast/crew)',
+      responsible: 'Production team',
+      generalRule: 'ASAP, by last day of auditions',
+      anchorRef: ANCHOR.AUDITION_START,
+      offsetDays: -60,
+      notifyVia: 'email',
+      recurring: false,
+      phase: 'Auditions',
+    },
+    {
+      task: 'IMPORTANT: Send acceptance and rejection notifications to ALL auditionees (required within 5 days per policy)',
+      responsible: 'Director',
+      generalRule: '1 day after last day of auditions',
+      anchorRef: ANCHOR.AUDITION_END,
+      offsetDays: 1,
+      notifyVia: 'both',
+      recurring: false,
+      phase: 'Auditions',
+      sendOnDate: true,
+      autoComplete: true,
+      emailBody: 'Hello,\n\nAs auditions wrap up for {{SHOW_NAME}}, here are some important reminders about the casting process:\n\n1. Everyone who auditioned, regardless of whether they receive a role, must hear back about the result of their audition.\n2. Please encourage cast members not to announce their audition results until the cast list has been officially announced, to avoid hurt feelings.\n3. Please do not announce the cast list yourselves; KWLT shares it via official channels first. Once all the acceptances and rejections have gone out, please send the cast list to the Communications Committee (communications@kwlt.org).\n4. When scheduling the read-through, please invite the Show Support representative and Membership Director (membership@kwlt.org).\n\nMore detail around these rules can be found in the Policy Manual, under the Open Auditions Policy.\n\nIf you have any questions, please reach out to your Show Support representative.\n\n-- KWLT Show Support',
+      emailSubject: '[KWLT] Casting Reminders -- {{SHOW_NAME}}',
+    },
+
+    // ── Readthrough & Rehearsal Phase ───────────────────────────────────────
+    {
+      task: 'Collect parental permission forms and emergency contact forms from cast & crew',
+      responsible: 'Stage Manager',
+      generalRule: 'At readthrough',
+      anchorRef: ANCHOR.READTHROUGH,
+      offsetDays: 0,
+      notifyVia: 'both',
+      recurring: false,
+      phase: 'Rehearsals',
+    },
+    {
+      task: 'Select "off book" date (for 4-week rehearsal, off book should be 3rd week)',
+      responsible: 'Stage Manager and Director',
+      generalRule: 'By readthrough',
+      anchorRef: ANCHOR.READTHROUGH,
+      offsetDays: 0,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Rehearsals',
+    },
+    // ── Rehearsal Phase (cont.) ────────────────────────────────────
+    {
+
+      task: 'Find photographer for headshots & dress rehearsal photos',
+      responsible: 'Producer',
+      generalRule: '5 weeks before opening (optional for studio series)',
+      anchorRef: ANCHOR.OPENING_NIGHT,
+      offsetDays: -35,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Rehearsals',
+      optional: true,
+    },
+    {
+      task: 'Submit poster for approval to Show Support representative',
+      responsible: 'Producer',
+      generalRule: '7 weeks before opening (optional for studio series)',
+      anchorRef: ANCHOR.OPENING_NIGHT,
+      offsetDays: -49,
+      notifyVia: 'both',
+      recurring: false,
+      phase: 'Rehearsals',
+      optional: true,
+    },
+    {
+      task: 'Print poster',
+      responsible: 'Producer',
+      generalRule: '1 week before poster run (optional for studio series)',
+      anchorRef: ANCHOR.OPENING_NIGHT,
+      offsetDays: -37,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Rehearsals',
+      optional: true,
+    },
+    {
+      task: 'Collect information for program from cast & crew',
+      responsible: 'Producer',
+      generalRule: '1 month before possession day',
+      anchorRef: ANCHOR.BUILD_POSSESSION,
+      offsetDays: -30,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Rehearsals',
+    },
+    {
+      task: 'Do headshots',
+      responsible: 'Producer',
+      generalRule: '1 month before opening (optional for studio series — if doing, do at an early rehearsal)',
+      anchorRef: ANCHOR.OPENING_NIGHT,
+      offsetDays: -30,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Rehearsals',
+      optional: true,
+    },
+    {
+      task: 'Do poster run around town',
+      responsible: 'Producer',
+      generalRule: '1 month before opening (optional for studio series)',
+      anchorRef: ANCHOR.OPENING_NIGHT,
+      offsetDays: -30,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Rehearsals',
+      optional: true,
+    },
+    {
+      task: 'Invite the board to your second dress rehearsal',
+      responsible: 'Director',
+      generalRule: '2 weeks before opening',
+      anchorRef: ANCHOR.OPENING_NIGHT,
+      offsetDays: -14,
+      notifyVia: 'email',
+      recurring: false,
+      phase: 'Rehearsals',
+    },
+
+    // ── Build & Tech Phase ──────────────────────────────────────────────────
+    {
+      task: 'Create program & get sign off from production',
+      responsible: 'Producer',
+      generalRule: 'Build weekend',
+      anchorRef: ANCHOR.BUILD_POSSESSION,
+      offsetDays: 0,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Build & Tech',
+    },
+    {
+      task: 'Get safety training',
+      responsible: 'Technical Director',
+      generalRule: 'On possession',
+      anchorRef: ANCHOR.BUILD_POSSESSION,
+      offsetDays: 0,
+      notifyVia: 'email',
+      recurring: false,
+      phase: 'Build & Tech',
+    },
+    {
+      task: 'Take possession & build your set',
+      responsible: 'Production team',
+      generalRule: 'Possession day',
+      anchorRef: ANCHOR.BUILD_POSSESSION,
+      offsetDays: -3,
+      notifyVia: 'both',
+      recurring: false,
+      phase: 'Build & Tech',
+      autoComplete: true,
+      emailBody: 'Hello,\n\nThe production team for {{SHOW_NAME}} is about to take possession of the theatre! Here are some important items:\n\nStrike Checklist: Please do a walkthrough with the checklist and inform the Show Support Committee of the current state of the theatre, so it can be noted before the post-show strike walkthrough.\n\nBuilding Responsibilities: Please review the attached document describing responsibilities for the building during the run.\n\nConcessions: Cast and crew purchases must be logged via the iPad at concessions using Square. Please share the concessions process with your cast and crew. The detailed process can be found in the resources folder.\n\nTech Weekend: The Show Support Committee will be dropping by on the morning of your tech Saturday. Please let them know what time you plan to begin.\n\nAll of these documents can be found in your production resources folder:\n{{RESOURCES_URL}}\n\nIf you have any questions, please reach out to your Show Support representative.\n\n-- KWLT Show Support',
+      emailSubject: '[KWLT] Theatre Possession -- {{SHOW_NAME}}',
+    },
+    {
+      task: 'Walk through theatre with strike checklist and inform board of any problems',
+      responsible: 'Stage Manager & Technical Director',
+      generalRule: 'On possession',
+      anchorRef: ANCHOR.BUILD_POSSESSION,
+      offsetDays: 0,
+      notifyVia: 'both',
+      recurring: false,
+      phase: 'Build & Tech',
+    },
+    {
+      task: 'Plan tech/possession day tasks',
+      responsible: 'Production team',
+      generalRule: 'Before possession day',
+      anchorRef: ANCHOR.BUILD_POSSESSION,
+      offsetDays: -7,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Build & Tech',
+    },
+    {
+      task: 'Invite Show Support committee representative to possession day',
+      responsible: 'Stage Manager',
+      generalRule: '1 week before possession day',
+      anchorRef: ANCHOR.BUILD_POSSESSION,
+      offsetDays: -7,
+      notifyVia: 'both',
+      recurring: false,
+      phase: 'Build & Tech',
+    },
+    {
+      task: 'Set sound & light cues',
+      responsible: 'Technical Director',
+      generalRule: 'Possession day',
+      anchorRef: ANCHOR.BUILD_POSSESSION,
+      offsetDays: 0,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Build & Tech',
+    },
+    {
+      task: 'Plan schedule for show nights',
+      responsible: 'Production team',
+      generalRule: 'Possession day',
+      anchorRef: ANCHOR.BUILD_POSSESSION,
+      offsetDays: 0,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Build & Tech',
+    },
+    {
+      task: 'Run cue to cue',
+      responsible: 'Stage Manager',
+      generalRule: 'Possession day',
+      anchorRef: ANCHOR.BUILD_POSSESSION,
+      offsetDays: 0,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Build & Tech',
+    },
+    {
+      task: 'Write front of house speech and send to show support for approval',
+      responsible: 'Director',
+      generalRule: 'Possession day',
+      anchorRef: ANCHOR.BUILD_POSSESSION,
+      offsetDays: 0,
+      notifyVia: 'both',
+      recurring: false,
+      phase: 'Build & Tech',
+    },
+    {
+      task: 'Print photos for lobby and programs',
+      responsible: 'Producer',
+      generalRule: 'Possession day, before opening',
+      anchorRef: ANCHOR.BUILD_POSSESSION,
+      offsetDays: 0,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Build & Tech',
+    },
+
+    // ── Show Run Phase ──────────────────────────────────────────────────────
+    {
+      task: 'Plan for strike',
+      responsible: 'Stage Manager & Technical Director',
+      generalRule: '1 week before closing',
+      anchorRef: ANCHOR.CLOSING_NIGHT,
+      offsetDays: -7,
+      notifyVia: 'both',
+      recurring: false,
+      phase: 'Shows',
+      emailBody: 'Hello,\n\nClosing weekend is fast approaching for {{SHOW_NAME}}, which means strike is also coming up!\n\nThe strike checklist and strike policy can be found in your resources folder -- the checklist will help with strike, and the policy outlines expectations. As per the strike policy, board members will do a walkthrough of the theatre afterwards with the checklist and the evaluation will be passed along to the production team.\n\nIf there are any concerns about the state the theatre was received in that should be noted before this walkthrough (e.g., costumes or props left that are not the responsibility of this production), please let the Show Support Committee know.\n\nREMINDERS:\n\n- Props and Costumes: Now is a good time to organize what will happen to props and costumes. Any items to be donated to the theatre should be coordinated with the Props Manager (props@kwlt.org) and Costumes Manager (costumes@kwlt.org) BEFORE strike. No props should be left on shelves or costumes on the rack without explicit approval.\n\n- Alcohol Policy: No alcohol may be consumed on KWLT premises that has not been purchased from the bar and sold by a SmartServe Certified Volunteer. It is strongly recommended that no one participating in strike consume alcohol before strike begins. Alcohol for the strike party may be stored at the theatre during the show run, as long as it is out-of-sight and unopened.\n\nResources folder: {{RESOURCES_URL}}\n\nIf you have any questions or concerns, please reach out to your Show Support representative.\n\n-- KWLT Show Support',
+      emailSubject: '[KWLT] Strike Reminders -- {{SHOW_NAME}}',
+    },
+
+    // ── Post-Show Phase ─────────────────────────────────────────────────────
+    {
+      task: 'Return keys',
+      responsible: 'Production Team',
+      generalRule: '1 week after close',
+      anchorRef: ANCHOR.CLOSING_NIGHT,
+      offsetDays: 7,
       notifyVia: 'both',
       recurring: false,
       phase: 'Post-Show',
-      autoComplete: true,
-      emailBody: 'Hello,\n\nCongratulations on finishing the run of {{SHOW_NAME}}!\n\nKWLT is committed to the continuous improvement of the experience of everyone who participates in our shows. A feedback survey will be sent to the cast and crew to collect feedback on their experience. The survey is anonymous and takes approximately 10 minutes to complete.\n\nThe Show Support Committee will also be scheduling a debrief meeting with the production team (Director, Stage Manager, Producer, and Technical Director at minimum) in the coming days.\n\nThank you for all your work on this production!\n\n-- KWLT Show Support',
-      emailSubject: '[KWLT] Post-Show Feedback -- {{SHOW_NAME}}',
     },
     {
       task: 'Submit receipts for reimbursement',

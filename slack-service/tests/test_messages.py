@@ -164,6 +164,43 @@ class TestActionIdFormat:
         assert len(action_id) <= 255
 
 
+class TestOptionalTaskBlocks:
+    """Verify optional task messages have the right styling and buttons."""
+
+    def test_optional_uses_question_mark_emoji(self):
+        ctx = {**REMINDER_CONTEXT, "is_optional": True}
+        result = build_reminder_blocks(ctx, "advance")
+        text = result["attachments"][0]["blocks"][0]["text"]["text"]
+        assert "❔" in text
+        assert "*Optional:*" in text
+
+    def test_optional_uses_purple_color(self):
+        ctx = {**REMINDER_CONTEXT, "is_optional": True}
+        result = build_reminder_blocks(ctx, "advance")
+        assert result["attachments"][0]["color"] == "#a78bfa"
+
+    def test_optional_includes_skip_disclaimer(self):
+        ctx = {**REMINDER_CONTEXT, "is_optional": True}
+        result = build_reminder_blocks(ctx, "advance")
+        text = result["attachments"][0]["blocks"][0]["text"]["text"]
+        assert "optional" in text.lower()
+        assert "skip" in text.lower()
+
+    def test_optional_has_skip_button(self):
+        ctx = {**REMINDER_CONTEXT, "is_optional": True}
+        result = build_reminder_blocks(ctx, "advance")
+        buttons = result["attachments"][0]["blocks"][1]["elements"]
+        assert len(buttons) == 2
+        assert buttons[0]["action_id"].startswith("mark_done:")
+        assert buttons[1]["action_id"].startswith("skip_task:")
+
+    def test_non_optional_has_no_skip_button(self):
+        result = build_reminder_blocks(REMINDER_CONTEXT, "advance")
+        buttons = result["attachments"][0]["blocks"][1]["elements"]
+        assert len(buttons) == 1
+        assert buttons[0]["action_id"].startswith("mark_done:")
+
+
 # Note: TestColorCodes removed — colors are already verified by the golden
 # file contract tests above. Duplicating them here adds maintenance burden
 # without catching additional bugs.

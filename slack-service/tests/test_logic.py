@@ -16,12 +16,13 @@ from app.reminder_logic import (
     generate_token,
     get_custom_email_for_task,
     is_auto_complete_task,
+    is_optional_task,
     is_send_on_date_task,
     lookup_original_notify_via,
     render_template,
     strip_emoji,
 )
-from app.task_templates import get_task_template_data
+from app.task_templates import get_task_template_data, get_task_template_for_type, get_studio_series_task_template_data
 
 
 class TestTokenGeneration:
@@ -181,6 +182,19 @@ class TestTaskTemplateLookups:
         assert isinstance(data, list)
         assert len(data) > 0
 
+    def test_studio_series_returns_list(self):
+        data = get_studio_series_task_template_data()
+        assert isinstance(data, list)
+        assert len(data) > 0
+
+    def test_dispatcher_defaults_to_mainstage(self):
+        data = get_task_template_for_type()
+        assert data == get_task_template_data()
+
+    def test_dispatcher_studio_series(self):
+        data = get_task_template_for_type("Studio Series")
+        assert data == get_studio_series_task_template_data()
+
     def test_all_tasks_have_required_fields(self):
         for t in get_task_template_data():
             assert "task" in t
@@ -188,16 +202,23 @@ class TestTaskTemplateLookups:
             assert "anchorRef" in t
             assert "notifyVia" in t
 
+    def test_studio_tasks_have_required_fields(self):
+        for t in get_studio_series_task_template_data():
+            assert "task" in t
+            assert "responsible" in t
+            assert "anchorRef" in t
+            assert "notifyVia" in t
+
     def test_is_auto_complete_true(self):
         """Tasks with autoComplete flag should be detected."""
-        assert is_auto_complete_task("Share resource folder and policies with production team") is True
+        assert is_auto_complete_task("Take possession of theatre") is True
 
     def test_is_auto_complete_false(self):
         assert is_auto_complete_task("Book extra audition days if needed with Rentals") is False
 
-    def test_is_auto_complete_substring_match(self):
-        """Should match when task name contains the template task."""
-        assert is_auto_complete_task("Share resource folder and policies with production team (extra context)") is True
+    def test_is_auto_complete_with_production_type(self):
+        """Should find auto-complete tasks in Studio Series template."""
+        assert is_auto_complete_task("Take possession & build your set", "Studio Series") is True
 
     def test_is_send_on_date_true(self):
         assert is_send_on_date_task(
@@ -234,6 +255,19 @@ class TestTaskTemplateLookups:
         result = lookup_original_notify_via("This task does not exist")
         assert result is None
 
+    def test_lookup_with_studio_production_type(self):
+        """Should find tasks in Studio Series template when type is specified."""
+        result = lookup_original_notify_via(
+            "Create plan for rehearsals (consider pre-scheduling all rehearsals for studio series)",
+            "Studio Series",
+        )
+        assert result == "slack"
 
-# Note: TestResolveRecipientEmail removed — the function is a trivial
-# dict.get() with an `or` chain. No business logic to test.
+    def test_is_optional_task_true(self):
+        assert is_optional_task("Do headshots", "Studio Series") is True
+
+    def test_is_optional_task_false_mainstage(self):
+        assert is_optional_task("Do headshots", "Mainstage") is False
+
+    def test_is_optional_task_false_non_optional(self):
+        assert is_optional_task("Plan for strike", "Studio Series") is False

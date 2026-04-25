@@ -42,6 +42,7 @@ function refreshSeasonOverview() {
       if (daysUntil <= 30) {
         allTasks.push([
           show.name,
+          show.productionType || PRODUCTION_TYPE.MAINSTAGE,
           data[row][COL.TASK],
           data[row][COL.RESPONSIBLE],
           deadline,
@@ -54,12 +55,12 @@ function refreshSeasonOverview() {
   }
 
   // Sort: overdue first (most negative), then by deadline
-  allTasks.sort((a, b) => a[5] - b[5]);
+  allTasks.sort((a, b) => a[6] - b[6]);
 
   // Clear existing data (keep header)
   const lastRow = sheet.getLastRow();
   if (lastRow > 1) {
-    sheet.getRange(2, 1, lastRow - 1, 7).clear();
+    sheet.getRange(2, 1, lastRow - 1, 8).clear();
   }
 
   if (allTasks.length === 0) {
@@ -70,13 +71,13 @@ function refreshSeasonOverview() {
   }
 
   // Write data
-  sheet.getRange(2, 1, allTasks.length, 7).setValues(allTasks);
+  sheet.getRange(2, 1, allTasks.length, 8).setValues(allTasks);
 
   // Format
-  sheet.getRange(2, 4, allTasks.length, 1).setNumberFormat('yyyy-mm-dd');
+  sheet.getRange(2, 5, allTasks.length, 1).setNumberFormat('yyyy-mm-dd');
 
-  // Conditional formatting on "Days Until/Since" column
-  const daysRange = sheet.getRange(2, 6, allTasks.length, 1);
+  // Conditional formatting on "Days Until/Since" column (col 7)
+  const daysRange = sheet.getRange(2, 7, allTasks.length, 1);
 
   const overdueFormat = SpreadsheetApp.newConditionalFormatRule()
     .whenNumberLessThan(0)
@@ -103,14 +104,14 @@ function refreshSeasonOverview() {
   // Remove old rules for this range
   const newRules = rules.filter(r => {
     const ranges = r.getRanges();
-    return !ranges.some(rng => rng.getColumn() === 6);
+    return !ranges.some(rng => rng.getColumn() === 7);
   });
   newRules.push(overdueFormat, todayFormat, soonFormat);
   sheet.setConditionalFormatRules(newRules);
 
   // Add summary note
-  const overdue = allTasks.filter(t => t[5] < 0).length;
-  const dueThisWeek = allTasks.filter(t => t[5] >= 0 && t[5] <= 7).length;
+  const overdue = allTasks.filter(t => t[6] < 0).length;
+  const dueThisWeek = allTasks.filter(t => t[6] >= 0 && t[6] <= 7).length;
 
   SpreadsheetApp.getUi().alert(
     '📅 Season Overview Updated',
@@ -151,6 +152,7 @@ function _refreshSeasonOverviewSilent(ss) {
       if (daysUntil <= 30) {
         allTasks.push([
           show.name,
+          show.productionType || PRODUCTION_TYPE.MAINSTAGE,
           data[row][COL.TASK],
           data[row][COL.RESPONSIBLE],
           deadline,
@@ -162,11 +164,11 @@ function _refreshSeasonOverviewSilent(ss) {
     }
   }
 
-  allTasks.sort((a, b) => a[5] - b[5]);
+  allTasks.sort((a, b) => a[6] - b[6]);
 
   const lastRow = sheet.getLastRow();
   if (lastRow > 1) {
-    sheet.getRange(2, 1, lastRow - 1, 7).clear();
+    sheet.getRange(2, 1, lastRow - 1, 8).clear();
   }
 
   if (allTasks.length === 0) {
@@ -175,8 +177,8 @@ function _refreshSeasonOverviewSilent(ss) {
     return;
   }
 
-  sheet.getRange(2, 1, allTasks.length, 7).setValues(allTasks);
-  sheet.getRange(2, 4, allTasks.length, 1).setNumberFormat('yyyy-mm-dd');
+  sheet.getRange(2, 1, allTasks.length, 8).setValues(allTasks);
+  sheet.getRange(2, 5, allTasks.length, 1).setNumberFormat('yyyy-mm-dd');
 
   Logger.log('Season Overview refreshed: ' + allTasks.length + ' tasks across ' + activeShows.length + ' shows.');
 }

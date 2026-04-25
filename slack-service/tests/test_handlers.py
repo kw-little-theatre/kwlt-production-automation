@@ -170,6 +170,40 @@ class TestHandleChangeReadthroughDate:
         slack.send_response_url.assert_called_once()
 
 
+class TestHandleSkipTask:
+    """Tests for the Skip button interaction handler."""
+
+    def _make_payload(self, action_id: str) -> dict:
+        return {
+            "type": "block_actions",
+            "actions": [{"action_id": action_id}],
+            "user": {"id": "U12345"},
+            "channel": {"id": "C12345"},
+            "response_url": "https://hooks.slack.com/actions/test",
+        }
+
+    def test_skip_success(self):
+        sheets = MagicMock()
+        sheets.mark_task_skipped.return_value = MarkTaskResult(success=True, message="Task skipped.")
+        slack = MagicMock()
+
+        handle_block_action("skip_task:Show:Task", self._make_payload("skip_task:Show:Task"), sheets, slack)
+
+        sheets.mark_task_skipped.assert_called_once_with("Show", "Task")
+        slack.send_response_url.assert_called_once()
+        assert "skipped" in slack.send_response_url.call_args[0][1]
+
+    def test_skip_failure(self):
+        sheets = MagicMock()
+        sheets.mark_task_skipped.return_value = MarkTaskResult(success=False, message="Not found.")
+        slack = MagicMock()
+
+        handle_block_action("skip_task:Show:Task", self._make_payload("skip_task:Show:Task"), sheets, slack)
+
+        slack.send_response_url.assert_called_once()
+        assert "Could not skip" in slack.send_response_url.call_args[0][1]
+
+
 class TestActionIdRouting:
     """Tests for action_id routing and edge cases."""
 
