@@ -193,8 +193,14 @@ function _executeAction(action, context, config) {
 
   // Slack reminder to show channel (skip for overdue — escalation handles it)
   if (action !== 'overdue' && (context.notifyVia === 'slack' || context.notifyVia === 'both') && config.sendSlack) {
-    // Always use rich block message with "Mark Done" button (buttons use Slack Interactivity, not WEB_APP_URL)
-    const result = sendSlackBlockMessageWithButton(config, context, action);
+    let result;
+    if (config.pythonServiceUrl) {
+      // Route through Python service (Phase 3 hybrid model)
+      result = _sendSlackViaPython(config.pythonServiceUrl, context);
+    } else {
+      // Direct Slack send (fallback)
+      result = sendSlackBlockMessageWithButton(config, context, action);
+    }
     const ok = result && result.ok;
     _logSend(config.ss, context, 'slack', action, ok, ok ? '' : (result && result.error || 'Unknown error'));
     if (ok) anySuccess = true;
@@ -402,6 +408,105 @@ function _resolveRecipientEmail(context, config) {
   return context.showEmail || null;
 }
 
+// ─── Python Service Proxy ─────────────────────────────────────────────────────
+
+/**
+ * Sends a Slack reminder via the Python service.
+ * Converts the Apps Script context to the Python TaskContext format and
+ * POSTs to /reminders/send. Falls back to direct Slack if the service
+ * is unreachable.
+ *
+ * @param {string} serviceUrl — base URL of the Python service
+ * @param {Object} context — the reminder context object
+ * @returns {{ ok: boolean, error: string }}
+ */
+function _sendSlackViaPython(serviceUrl, context) {
+  const payload = {
+    show_name: context.showName,
+    task: context.task,
+    responsible: context.responsible,
+    general_rule: context.generalRule,
+    deadline: context.deadline,
+    days_until: context.daysUntil,
+    days_overdue: context.daysOverdue,
+    slack_channel: context.slackChannel,
+    show_email: context.showEmail || '',
+    resources_url: context.resourcesUrl || '',
+    handbook_url: context.handbookUrl || '',
+    notify_via: context.notifyVia || 'both',
+    mark_done_url: context.markDoneUrl || '',
+    production_type: context.productionType || 'Mainstage',
+    is_optional: context.isOptional || false,
+  };
+
+  try {
+    const response = UrlFetchApp.fetch(serviceUrl + '/reminders/send', {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true,
+    });
+
+    const result = JSON.parse(response.getContentText());
+    return result;
+  } catch (e) {
+    Logger.log('Python service error: ' + e.message + '. Falling back to direct Slack.');
+    // Return failure — the caller should NOT retry via direct Slack here;
+    // the caller can decide to fall back if needed.
+    return { ok: false, error: 'Python service unavailable: ' + e.message };
+  }
+}
+
+/**
+ * Sends the daily digest via the Python service.
+ * Falls back to direct Slack if the service is unreachable.
+ */
+function _sendDailyDigestViaPython(serviceUrl, digestItems) {
+  const payload = digestItems.map(function(item) {
+    return {
+      show: item.show,
+      task: item.task,
+      responsible: item.responsible,
+      deadline: item.deadline,
+      action: item.action,
+      days_until: item.daysUntil,
+      success: item.success,
+    };
+  });
+
+  try {
+    const response = UrlFetchApp.fetch(serviceUrl + '/reminders/digest', {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true,
+    });
+    return JSON.parse(response.getContentText());
+  } catch (e) {
+    Logger.log('Python service digest error: ' + e.message);
+    return { ok: false, error: e.message };
+  }
+}
+
+/**
+ * Sends a readthrough date prompt via the Python service.
+ */
+function _sendReadthroughPromptViaPython(serviceUrl, showName, channel) {
+  try {
+    const response = UrlFetchApp.fetch(
+      serviceUrl + '/reminders/readthrough-prompt?show_name=' + encodeURIComponent(showName) + '&channel=' + encodeURIComponent(channel),
+      {
+        method: 'post',
+        muteHttpExceptions: true,
+      }
+    );
+    return JSON.parse(response.getContentText());
+  } catch (e) {
+    Logger.log('Python service readthrough prompt error: ' + e.message);
+    return { ok: false, error: e.message };
+  }
+}
+
 // ─── Config Loader ────────────────────────────────────────────────────────────
 
 /**
@@ -422,6 +527,7 @@ function _loadConfig(ss) {
     showSupportEmail: props.getProperty('SHOW_SUPPORT_EMAIL') || '',
     webAppUrl: props.getProperty('WEB_APP_URL') || '',
     membershipEmail: props.getProperty('MEMBERSHIP_EMAIL') || '',
+    pythonServiceUrl: props.getProperty('PYTHON_SERVICE_URL') || '',
     slackDefaultChannel: '',
     advanceReminderDays: REMINDER_ADVANCE_DAYS,
     urgentReminderDays: REMINDER_URGENT_DAYS,
@@ -618,8 +724,17 @@ function _promptForReadthroughDate(ss, config, activeShows, today) {
       if (daysSinceLastPrompt < 1) continue;
     }
 
-    // Send the date picker prompt
-    const result = sendReadthroughDatePrompt(config, show.name, show.slackChannel);
+    // Send the date picker prompt (via Python service or direct)
+    let result;
+    if (config.pythonServiceUrl) {
+      result = _sendReadthroughPromptViaPython(config.pythonServiceUrl, show.name, show.slackChannel);
+      if (!result || !result.ok) {
+        Logger.log('Python readthrough prompt failed, falling back to direct Slack.');
+        result = sendReadthroughDatePrompt(config, show.name, show.slackChannel);
+      }
+    } else {
+      result = sendReadthroughDatePrompt(config, show.name, show.slackChannel);
+    }
     if (result && result.ok) {
       // Record the prompt timestamp in Show Setup (if tracking column exists)
       if (promptCol !== -1) {
@@ -639,6 +754,13 @@ function _promptForReadthroughDate(ss, config, activeShows, today) {
  */
 function _sendDailyDigestSlack(digestItems, config) {
   if (!config.showSupportChannel) return;
+
+  // Route through Python service if available
+  if (config.pythonServiceUrl) {
+    const result = _sendDailyDigestViaPython(config.pythonServiceUrl, digestItems);
+    if (result && result.ok) return;
+    Logger.log('Python digest failed, falling back to direct Slack.');
+  }
 
   const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
 

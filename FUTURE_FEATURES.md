@@ -108,8 +108,11 @@ Currently, if an anchor date (Opening Night, Audition Start, etc.) is changed in
    - Health check, Mark Done via Slack button, Slack interactions via ngrok — all working
    - `env.sh` now switches both clasp and slack-service `SPREADSHEET_ID` in one command
 
-2. **Phase 3 — Port Outbound Slack Messaging**: Port `sendSlack()`, block message builders, daily digest to Python. Have Apps Script daily trigger call the Python service for Slack sends (hybrid model). Email stays in Apps Script.
-   - ⚠️ **Before starting**: create a feature branch (`git checkout -b phase-3-outbound-slack`) — don't work directly on `main`.
+2. ~~**Phase 3 — Port Outbound Slack Messaging**~~: ✅ Done
+   - Python endpoints: `/reminders/send`, `/reminders/digest`, `/reminders/readthrough-prompt`
+   - Apps Script routes Slack sends through Python service when `PYTHON_SERVICE_URL` is configured
+   - Fallback: if Python service is unreachable, Apps Script sends Slack directly
+   - **To activate**: deploy the Python service and set `PYTHON_SERVICE_URL` via Manage Secrets
 
 3. **Phase 4 — RAG Q&A**: Chunk + embed Production Handbook and Policy Manual, ChromaDB vector store, `POST /slack/events` for `app_mention` handler, GPT-4o-mini for answers, threaded Slack responses with source citations.
 
