@@ -16,7 +16,7 @@ from urllib.parse import quote
 from typing import Optional
 
 from app.constants import STATUS
-from app.task_templates import get_task_template_data, get_task_template_for_type
+from app.task_templates import get_task_template_for_type
 
 
 # ─── Action Determination ─────────────────────────────────────────────────────

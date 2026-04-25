@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.models import DigestItem, MarkTaskResult, TaskContext
+from app.models import MarkTaskResult
 
 client = TestClient(app)
 
