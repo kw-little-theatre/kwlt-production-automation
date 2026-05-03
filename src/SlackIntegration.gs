@@ -243,15 +243,32 @@ function sendConsolidatedPerShowReminder(config, context, action, baseTask, subS
  * @param {string} channel — the show's Slack channel
  * @returns {{ ok: boolean, ts: string, error: string }}
  */
-function sendReadthroughDatePrompt(config, showName, channel) {
+function sendReadthroughDatePrompt(config, showName, channel, opts) {
+  const isNWF = opts && opts.isNWF;
+  const existingDates = (opts && opts.existingDates) || [];
+
+  let headerText, contextText;
+  if (isNWF) {
+    headerText = '📅 *Readthrough Date Needed — ' + showName + '*\n\n' +
+      'Time to schedule readthroughs! Pick a date below.\n' +
+      '_You can add multiple readthrough dates — the latest date will be used for task scheduling._';
+    if (existingDates.length > 0) {
+      headerText += '\n\n📌 *Dates already set:* ' + existingDates.join(', ');
+    }
+    contextText = '_Pick the latest readthrough date. You can add more dates after._';
+  } else {
+    headerText = '📅 *Readthrough Date Needed — ' + showName + '*\n\n' +
+      'Auditions are wrapped! When is the readthrough? ' +
+      'Pick a date below so reminders for readthrough-dependent tasks can be scheduled.';
+    contextText = '_This prompt will repeat daily until the date is set._';
+  }
+
   const blocks = [
     {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: '📅 *Readthrough Date Needed — ' + showName + '*\n\n' +
-          'Auditions are wrapped! When is the readthrough? ' +
-          'Pick a date below so reminders for readthrough-dependent tasks can be scheduled.',
+        text: headerText,
       },
     },
     {
@@ -272,7 +289,7 @@ function sendReadthroughDatePrompt(config, showName, channel) {
       elements: [
         {
           type: 'mrkdwn',
-          text: '_This prompt will repeat daily until the date is set._',
+          text: contextText,
         },
       ],
     },

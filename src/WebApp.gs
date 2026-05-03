@@ -94,8 +94,30 @@ function doPost(e) {
           return ContentService.createTextOutput('').setMimeType(ContentService.MimeType.TEXT);
         }
 
-        Logger.log('Readthrough date picker: show=' + showName + ', date=' + selectedDate + ', user=' + userName);
-        const result = _setReadthroughDate(showName, selectedDate);
+        // Detect NWF production type for multi-date readthrough support
+        const ss = SpreadsheetApp.getActiveSpreadsheet();
+        const productionType = _getShowProductionType(ss, showName);
+        const isNWF = productionType === PRODUCTION_TYPE.NWF;
+
+        Logger.log('Readthrough date picker: show=' + showName + ', date=' + selectedDate + ', user=' + userName + ', isNWF=' + isNWF);
+
+        // For NWF: track all readthrough dates and only store the latest
+        let existingDates = [];
+        if (isNWF) {
+          existingDates = _getNWFReadthroughDates(ss, showName);
+          // Add this date if not already tracked
+          if (existingDates.indexOf(selectedDate) === -1) {
+            existingDates.push(selectedDate);
+            existingDates.sort();
+          }
+          // Store the latest date
+          const latestDate = existingDates[existingDates.length - 1];
+          _saveNWFReadthroughDates(ss, showName, existingDates);
+          var result = _setReadthroughDate(showName, latestDate);
+        } else {
+          var result = _setReadthroughDate(showName, selectedDate);
+        }
+
         Logger.log('Readthrough date update result: ' + JSON.stringify(result));
 
         if (result.success) {
@@ -104,11 +126,13 @@ function doPost(e) {
             : '';
           const changeMsg = result.wasChange ? ' (changed)' : '';
 
-          // Send confirmation with a "Change Date" button to the channel
-          const config = _loadConfig(SpreadsheetApp.getActiveSpreadsheet());
+          // Send confirmation with a "Change Date" button (+ "Add Another" for NWF)
+          const config = _loadConfig(ss);
           const channel = payload.channel ? payload.channel.id : '';
           if (channel && config.slackBotToken) {
-            _sendReadthroughConfirmation(config, channel, showName, selectedDate, userName, reactivatedMsg + changeMsg);
+            _sendReadthroughConfirmation(config, channel, showName, selectedDate, userName,
+              reactivatedMsg + changeMsg,
+              { isNWF: isNWF, existingDates: existingDates });
           } else {
             _sendSlackResponseUrl(payload.response_url,
               '✅ *Readthrough date for ' + showName + '* set to *' + selectedDate + '* by ' + userName + '.' +
@@ -118,6 +142,23 @@ function doPost(e) {
         } else {
           _sendSlackResponseUrl(payload.response_url,
             '⚠️ Could not set readthrough date: ' + result.message,
+            true);
+        }
+
+        return ContentService.createTextOutput('').setMimeType(ContentService.MimeType.TEXT);
+      }
+
+      // ── Add another readthrough date (NWF) ───────────────────────────
+      if (actionId && actionId.startsWith('add_readthrough_date:')) {
+        const showName = decodeURIComponent(actionId.substring('add_readthrough_date:'.length));
+        const config = _loadConfig(SpreadsheetApp.getActiveSpreadsheet());
+        const channel = payload.channel ? payload.channel.id : '';
+
+        if (channel && config.slackBotToken) {
+          const existingDates = _getNWFReadthroughDates(SpreadsheetApp.getActiveSpreadsheet(), showName);
+          sendReadthroughDatePrompt(config, showName, channel, { isNWF: true, existingDates: existingDates });
+          _sendSlackResponseUrl(payload.response_url,
+            '📅 Date picker posted above — select another readthrough date.',
             true);
         }
 
@@ -441,30 +482,76 @@ function _sendMarkDoneConfirmation(config, channel, showName, taskText, userName
 /**
  * Sends a readthrough date confirmation with a "Change Date" button.
  */
-function _sendReadthroughConfirmation(config, channel, showName, dateStr, userName, extraMsg) {
+function _sendReadthroughConfirmation(config, channel, showName, dateStr, userName, extraMsg, opts) {
+  const isNWF = opts && opts.isNWF;
+  const existingDates = (opts && opts.existingDates) || [];
+
+  let confirmText = '✅ *Readthrough date for ' + showName + '* set to *' + dateStr + '* by ' + userName + '.' +
+    (extraMsg || '') +
+    '\nMembership Director and Show Support have been notified.';
+
+  if (isNWF && existingDates.length > 0) {
+    confirmText += '\n\n📌 *All readthrough dates:* ' + existingDates.join(', ');
+  }
+
+  const buttons = [{
+    type: 'button',
+    text: { type: 'plain_text', text: '📅 Change Date', emoji: true },
+    action_id: 'change_readthrough_date:' + encodeURIComponent(showName),
+  }];
+
+  if (isNWF) {
+    buttons.push({
+      type: 'button',
+      text: { type: 'plain_text', text: '➕ Add Another Readthrough Date', emoji: true },
+      action_id: 'add_readthrough_date:' + encodeURIComponent(showName),
+    });
+  }
+
   const blocks = [
     {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: '✅ *Readthrough date for ' + showName + '* set to *' + dateStr + '* by ' + userName + '.' +
-          (extraMsg || '') +
-          '\nMembership Director and Show Support have been notified.',
+        text: confirmText,
       },
     },
     {
       type: 'actions',
-      elements: [{
-        type: 'button',
-        text: { type: 'plain_text', text: '📅 Change Date', emoji: true },
-        action_id: 'change_readthrough_date:' + encodeURIComponent(showName),
-      }],
+      elements: buttons,
     },
   ];
 
   sendSlack(config, '', channel, {
     attachments: [{ color: '#6d28d9', fallback: '✅ Readthrough date for ' + showName + ' set to ' + dateStr, blocks: blocks }],
   });
+}
+
+// ─── NWF Readthrough Date Tracking ────────────────────────────────────────────
+
+/**
+ * Retrieves all readthrough dates for an NWF show.
+ * Stored as a comma-separated string in Script Properties.
+ * @param {SpreadsheetApp.Spreadsheet} ss — unused, kept for consistency
+ * @param {string} showName
+ * @returns {string[]} — array of "YYYY-MM-DD" date strings, sorted
+ */
+function _getNWFReadthroughDates(ss, showName) {
+  const key = 'nwf_readthrough_dates_' + showName;
+  const raw = PropertiesService.getScriptProperties().getProperty(key);
+  if (!raw) return [];
+  return raw.split(',').filter(function(s) { return s.length > 0; }).sort();
+}
+
+/**
+ * Saves all readthrough dates for an NWF show.
+ * @param {SpreadsheetApp.Spreadsheet} ss — unused, kept for consistency
+ * @param {string} showName
+ * @param {string[]} dates — array of "YYYY-MM-DD" date strings
+ */
+function _saveNWFReadthroughDates(ss, showName, dates) {
+  const key = 'nwf_readthrough_dates_' + showName;
+  PropertiesService.getScriptProperties().setProperty(key, dates.join(','));
 }
 
 // ─── Readthrough Date Update ──────────────────────────────────────────────────

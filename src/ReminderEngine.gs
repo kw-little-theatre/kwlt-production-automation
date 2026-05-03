@@ -812,14 +812,17 @@ function _promptForReadthroughDate(ss, config, activeShows, today) {
 
     // Send the date picker prompt (via Python service or direct)
     let result;
-    if (config.pythonServiceUrl) {
+    const isNWF = show.productionType === PRODUCTION_TYPE.NWF;
+    const promptOpts = isNWF ? { isNWF: true, existingDates: [] } : undefined;
+
+    if (config.pythonServiceUrl && !isNWF) {
       result = _sendReadthroughPromptViaPython(config.pythonServiceUrl, show.name, show.slackChannel);
       if (!result || !result.ok) {
         Logger.log('Python readthrough prompt failed, falling back to direct Slack.');
-        result = sendReadthroughDatePrompt(config, show.name, show.slackChannel);
+        result = sendReadthroughDatePrompt(config, show.name, show.slackChannel, promptOpts);
       }
     } else {
-      result = sendReadthroughDatePrompt(config, show.name, show.slackChannel);
+      result = sendReadthroughDatePrompt(config, show.name, show.slackChannel, promptOpts);
     }
     if (result && result.ok) {
       // Record the prompt timestamp in Show Setup (if tracking column exists)
