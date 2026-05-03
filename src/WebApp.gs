@@ -182,16 +182,8 @@ function doPost(e) {
         const parsedDate = new Date(latestDate + 'T00:00:00');
         const reactivated = _reactivateReadthroughTasksForShow(ss, showName, parsedDate);
 
-        // Send email notification to Membership & Show Support (once)
+        // Send email notification to Membership & Slack FYI to Show Support (once)
         _notifyReadthroughDateSet(ss, showName, existingDates.join(', '));
-
-        // Notify Show Support Slack channel
-        if (config.showSupportChannel && config.slackBotToken) {
-          sendSlack(config,
-            '📅 *Readthrough dates set for ' + showName + '*\n' +
-            existingDates.map(function(d) { return '• ' + d; }).join('\n'),
-            config.showSupportChannel);
-        }
 
         // Mark the "Schedule read-throughs" task as done if it exists
         _markTaskDone(showName, 'Schedule read-throughs');
@@ -575,49 +567,6 @@ function _sendReadthroughConfirmation(config, channel, showName, dateStr, userNa
 
   sendSlack(config, '', channel, {
     attachments: [{ color: '#6d28d9', fallback: '✅ Readthrough date for ' + showName + ' set to ' + dateStr, blocks: blocks }],
-  });
-}
-
-/**
- * Sends the NWF-specific readthrough confirmation with all dates listed
- * and buttons to add more or finalize.
- */
-function _sendNWFReadthroughConfirmation(config, channel, showName, allDates, userName) {
-  const dateList = allDates.map(function(d) { return '• ' + d; }).join('\n');
-
-  const blocks = [
-    {
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: '📅 *Readthrough dates for ' + showName + '* updated by ' + userName +
-          '\n\n*Scheduled readthroughs:*\n' + dateList,
-      },
-    },
-    {
-      type: 'actions',
-      elements: [
-        {
-          type: 'button',
-          text: { type: 'plain_text', text: '➕ Add Another Date', emoji: true },
-          action_id: 'add_readthrough_date:' + encodeURIComponent(showName),
-        },
-        {
-          type: 'button',
-          text: { type: 'plain_text', text: '✅ Done — Notify Membership & Show Support', emoji: true },
-          style: 'primary',
-          action_id: 'finalize_readthrough_dates:' + encodeURIComponent(showName),
-        },
-      ],
-    },
-    {
-      type: 'context',
-      elements: [{ type: 'mrkdwn', text: '_Add all readthrough dates, then click Done to send one notification._' }],
-    },
-  ];
-
-  sendSlack(config, '', channel, {
-    attachments: [{ color: '#6d28d9', fallback: '📅 Readthrough dates updated for ' + showName, blocks: blocks }],
   });
 }
 

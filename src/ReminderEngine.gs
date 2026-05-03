@@ -94,7 +94,7 @@ function runDailyReminders() {
         };
 
         // Check if this is a per-show task (contains " — " separator from NWF expansion)
-        const perShowSep = taskName.indexOf(' \u2014 ');
+        const perShowSep = taskName.lastIndexOf(' \u2014 ');
         if (perShowSep !== -1 && show.productionType === PRODUCTION_TYPE.NWF) {
           // Group per-show tasks for consolidated Slack reminders
           const baseTask = taskName.substring(0, perShowSep);
@@ -113,8 +113,9 @@ function runDailyReminders() {
           perShowGroups[groupKey].subShows.push(subShowName);
           perShowGroups[groupKey].rows.push(row);
 
-          // Still send individual emails for per-show tasks (they go to the show email)
-          if ((notifyVia === 'email' || notifyVia === 'both') && config.sendEmail) {
+          // For overdue: skip individual emails (escalation handles it in the group send below)
+          // For advance/urgent: send individual emails per sub-task
+          if (action !== 'overdue' && (notifyVia === 'email' || notifyVia === 'both') && config.sendEmail) {
             const recipientEmail = _resolveRecipientEmail(context, config);
             if (recipientEmail) {
               const customEmail = _getCustomEmailForTask(context.task, context.productionType);
@@ -175,7 +176,21 @@ function runDailyReminders() {
       if (!config.sendSlack) continue;
       if (group.context.notifyVia !== 'slack' && group.context.notifyVia !== 'both') continue;
 
-      const slackResult = sendConsolidatedPerShowReminder(config, group.context, group.action, group.baseTask, group.subShows);
+      let slackResult;
+      if (group.action === 'overdue') {
+        // Overdue: send a single escalation to Show Support channel (not show channel)
+        if (config.showSupportChannel) {
+          const overdueText = '🚨 *Overdue — ' + show.name + '*\n' +
+            '*' + group.baseTask + '* is overdue (' + group.context.daysOverdue + ' days past deadline ' + group.context.deadline + ').\n' +
+            '*Responsible:* ' + group.context.responsible + '\n' +
+            '*Pending for:* ' + group.subShows.join(', ');
+          slackResult = sendSlack(config, overdueText, config.showSupportChannel);
+        }
+      } else {
+        // Advance/urgent: send consolidated reminder to show channel
+        slackResult = sendConsolidatedPerShowReminder(config, group.context, group.action, group.baseTask, group.subShows);
+      }
+
       const ok = slackResult && slackResult.ok;
       _logSend(config.ss, group.context, 'slack', group.action, ok, ok ? '' : (slackResult && slackResult.error || 'Unknown error'));
 
