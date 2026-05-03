@@ -592,7 +592,7 @@ function _getActiveShows(ss) {
 
       // Parse audition end, with auto-derivation fallback (type-aware)
       const rawType = typeCol !== -1 ? String(data[i][typeCol] || '').trim() : '';
-      const productionType = rawType === PRODUCTION_TYPE.STUDIO_SERIES ? PRODUCTION_TYPE.STUDIO_SERIES : PRODUCTION_TYPE.MAINSTAGE;
+      const productionType = PRODUCTION_TYPES_LIST.indexOf(rawType) !== -1 ? rawType : PRODUCTION_TYPE.MAINSTAGE;
 
       let auditionEnd = auditionEndRaw instanceof Date ? auditionEndRaw : (auditionEndRaw ? new Date(auditionEndRaw) : null);
       if (!auditionEnd || isNaN(auditionEnd.getTime())) {

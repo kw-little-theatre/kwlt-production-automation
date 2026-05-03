@@ -110,6 +110,11 @@ function createShowTimeline(showName) {
   const tasks = getTaskTemplateForType(productionType);
   const rows = [];
 
+  // For NWF, read individual show names for per-show task expansion
+  const individualShowNames = (productionType === PRODUCTION_TYPE.NWF)
+    ? _getNWFShowNames(ss, showName)
+    : [];
+
   for (const task of tasks) {
     if (task.recurring) {
       // Check if the anchor exists before expanding
@@ -129,6 +134,38 @@ function createShowTimeline(showName) {
       } else {
         const weeklyRows = _expandRecurringTask(task, anchors);
         rows.push(...weeklyRows);
+      }
+    } else if (task.perShow && individualShowNames.length > 0) {
+      // Per-show tasks: expand into one row per individual show
+      const computedDate = _computeDate(anchors, task.anchorRef, task.offsetDays);
+      for (const subShowName of individualShowNames) {
+        if (computedDate === '') {
+          rows.push([
+            task.task + ' — ' + subShowName,
+            task.responsible,
+            task.generalRule,
+            task.anchorRef,
+            task.offsetDays,
+            '',
+            STATUS.SKIPPED,
+            'none',
+            '',
+            'Skipped — ' + task.anchorRef + ' date not set',
+          ]);
+        } else {
+          rows.push([
+            task.task + ' — ' + subShowName,
+            task.responsible,
+            task.generalRule,
+            task.anchorRef,
+            task.offsetDays,
+            computedDate,
+            STATUS.PENDING,
+            task.notifyVia,
+            '',
+            '',
+          ]);
+        }
       }
     } else {
       const computedDate = _computeDate(anchors, task.anchorRef, task.offsetDays);
@@ -235,6 +272,7 @@ function _getShowProductionType(ss, showName) {
     if (data[i][0] === showName) {
       const val = String(data[i][typeCol] || '').trim();
       if (val === PRODUCTION_TYPE.STUDIO_SERIES) return PRODUCTION_TYPE.STUDIO_SERIES;
+      if (val === PRODUCTION_TYPE.NWF) return PRODUCTION_TYPE.NWF;
       return PRODUCTION_TYPE.MAINSTAGE;
     }
   }
@@ -284,7 +322,7 @@ function _getAnchorDates(ss, showName, productionType) {
 
   // Audition End auto-derivation depends on production type:
   //   Studio Series: same day (1-day audition)
-  //   Mainstage: + 2 days (3-day audition weekend)
+  //   Mainstage / NWF: + 2 days (3-day audition weekend)
   if (!anchors[ANCHOR.AUDITION_END] && anchors[ANCHOR.AUDITION_START]) {
     const d = new Date(anchors[ANCHOR.AUDITION_START]);
     const offset = (productionType === PRODUCTION_TYPE.STUDIO_SERIES) ? 0 : 2;
@@ -292,21 +330,59 @@ function _getAnchorDates(ss, showName, productionType) {
     anchors[ANCHOR.AUDITION_END] = d;
   }
 
-  // Tech Weekend Start = Opening Night - 6 days (always the Saturday before Friday opening)
-  if (!anchors[ANCHOR.TECH_WEEKEND_START] && anchors[ANCHOR.OPENING_NIGHT]) {
-    const d = new Date(anchors[ANCHOR.OPENING_NIGHT]);
-    d.setDate(d.getDate() - 6);
-    anchors[ANCHOR.TECH_WEEKEND_START] = d;
+  // Tech Weekend — skip auto-derivation for NWF (not used; tasks use Possession Date)
+  if (productionType !== PRODUCTION_TYPE.NWF) {
+    // Tech Weekend Start = Opening Night - 6 days (always the Saturday before Friday opening)
+    if (!anchors[ANCHOR.TECH_WEEKEND_START] && anchors[ANCHOR.OPENING_NIGHT]) {
+      const d = new Date(anchors[ANCHOR.OPENING_NIGHT]);
+      d.setDate(d.getDate() - 6);
+      anchors[ANCHOR.TECH_WEEKEND_START] = d;
+    }
+
+    // Tech Weekend End = Tech Weekend Start + 1 day
+    if (!anchors[ANCHOR.TECH_WEEKEND_END] && anchors[ANCHOR.TECH_WEEKEND_START]) {
+      const d = new Date(anchors[ANCHOR.TECH_WEEKEND_START]);
+      d.setDate(d.getDate() + 1);
+      anchors[ANCHOR.TECH_WEEKEND_END] = d;
+    }
   }
 
-  // Tech Weekend End = Tech Weekend Start + 1 day
-  if (!anchors[ANCHOR.TECH_WEEKEND_END] && anchors[ANCHOR.TECH_WEEKEND_START]) {
-    const d = new Date(anchors[ANCHOR.TECH_WEEKEND_START]);
-    d.setDate(d.getDate() + 1);
-    anchors[ANCHOR.TECH_WEEKEND_END] = d;
+  // Script Freeze — NWF only: Opening Night - 42 days (derived, not stored in sheet)
+  if (productionType === PRODUCTION_TYPE.NWF && anchors[ANCHOR.OPENING_NIGHT]) {
+    const d = new Date(anchors[ANCHOR.OPENING_NIGHT]);
+    d.setDate(d.getDate() - 42);
+    anchors[DERIVED_ANCHOR.SCRIPT_FREEZE] = d;
   }
 
   return anchors;
+}
+
+// ─── NWF Show Names ───────────────────────────────────────────────────────────
+
+/**
+ * Reads individual show names for an NWF production from the Show Setup sheet.
+ * Show names are stored as newline-separated values in the "Show Names (NWF)" column.
+ * @param {SpreadsheetApp.Spreadsheet} ss
+ * @param {string} showName — the festival/production name (e.g., "NWF 2026")
+ * @returns {string[]} — array of individual show names, or empty array
+ */
+function _getNWFShowNames(ss, showName) {
+  const sheet = ss.getSheetByName(SHEET_SHOW_SETUP);
+  if (!sheet) return [];
+
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const showNamesCol = headers.indexOf('Show Names (NWF)');
+  if (showNamesCol === -1) return [];
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === showName) {
+      const raw = String(data[i][showNamesCol] || '').trim();
+      if (!raw) return [];
+      return raw.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
+    }
+  }
+  return [];
 }
 
 // ─── Date Computation ─────────────────────────────────────────────────────────
