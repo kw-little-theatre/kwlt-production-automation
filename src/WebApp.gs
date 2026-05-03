@@ -171,53 +171,66 @@ function doPost(e) {
           return ContentService.createTextOutput('').setMimeType(ContentService.MimeType.TEXT);
         }
 
-        // Set the latest date with full notifications (email to membership, task reactivation)
         const latestDate = existingDates[existingDates.length - 1];
-        const result = _setReadthroughDate(showName, latestDate);
-
         const config = _loadConfig(ss);
         const channel = payload.channel ? payload.channel.id : '';
 
-        if (result.success) {
-          const reactivatedMsg = result.reactivated > 0
-            ? '\n' + result.reactivated + ' dependent task(s) reactivated — reminders scheduled.'
-            : '';
-          const dateList = existingDates.map(function(d) { return '• ' + d; }).join('\n');
+        // Ensure the latest date is in the sheet (may already be there from silent updates)
+        _setReadthroughDateSilent(showName, latestDate);
 
-          if (channel && config.slackBotToken) {
-            const blocks = [
-              {
-                type: 'section',
-                text: {
-                  type: 'mrkdwn',
-                  text: '✅ *Readthrough dates finalized for ' + showName + '* by ' + userName +
-                    '\n\n*Scheduled readthroughs:*\n' + dateList +
-                    '\n\nMembership Director and Show Support have been notified.' +
-                    reactivatedMsg,
-                },
-              },
-              {
-                type: 'actions',
-                elements: [{
-                  type: 'button',
-                  text: { type: 'plain_text', text: '📅 Change Dates', emoji: true },
-                  action_id: 'add_readthrough_date:' + encodeURIComponent(showName),
-                }],
-              },
-            ];
+        // Reactivate readthrough-dependent tasks
+        const parsedDate = new Date(latestDate + 'T00:00:00');
+        const reactivated = _reactivateReadthroughTasksForShow(ss, showName, parsedDate);
 
-            sendSlack(config, '', channel, {
-              attachments: [{ color: '#059669', fallback: '✅ Readthrough dates finalized for ' + showName, blocks: blocks }],
-            });
-          } else {
-            _sendSlackResponseUrl(payload.response_url,
-              '✅ Readthrough dates finalized. Membership & Show Support notified.',
-              false);
-          }
+        // Send email notification to Membership & Show Support (once)
+        _notifyReadthroughDateSet(ss, showName, existingDates.join(', '));
+
+        // Notify Show Support Slack channel
+        if (config.showSupportChannel && config.slackBotToken) {
+          sendSlack(config,
+            '📅 *Readthrough dates set for ' + showName + '*\n' +
+            existingDates.map(function(d) { return '• ' + d; }).join('\n') +
+            '\nSet by ' + userName,
+            config.showSupportChannel);
+        }
+
+        // Mark the "Schedule read-throughs" task as done if it exists
+        _markTaskDone(showName, 'Schedule read-throughs');
+
+        const reactivatedMsg = reactivated > 0
+          ? '\n' + reactivated + ' dependent task(s) reactivated — reminders scheduled.'
+          : '';
+        const dateList = existingDates.map(function(d) { return '• ' + d; }).join('\n');
+
+        if (channel && config.slackBotToken) {
+          const blocks = [
+            {
+              type: 'section',
+              text: {
+                type: 'mrkdwn',
+                text: '✅ *Readthrough dates finalized for ' + showName + '* by ' + userName +
+                  '\n\n*Scheduled readthroughs:*\n' + dateList +
+                  '\n\nMembership Director and Show Support have been notified.' +
+                  reactivatedMsg,
+              },
+            },
+            {
+              type: 'actions',
+              elements: [{
+                type: 'button',
+                text: { type: 'plain_text', text: '📅 Change Dates', emoji: true },
+                action_id: 'add_readthrough_date:' + encodeURIComponent(showName),
+              }],
+            },
+          ];
+
+          sendSlack(config, '', channel, {
+            attachments: [{ color: '#059669', fallback: '✅ Readthrough dates finalized for ' + showName, blocks: blocks }],
+          });
         } else {
           _sendSlackResponseUrl(payload.response_url,
-            '⚠️ Could not finalize: ' + result.message,
-            true);
+            '✅ Readthrough dates finalized. Membership & Show Support notified.',
+            false);
         }
 
         return ContentService.createTextOutput('').setMimeType(ContentService.MimeType.TEXT);
