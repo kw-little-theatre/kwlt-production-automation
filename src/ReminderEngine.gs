@@ -39,6 +39,10 @@ function runDailyReminders() {
     const data = sheet.getDataRange().getValues();
     if (data.length <= 1) continue; // Only headers
 
+    // Collect per-show task groups for consolidated reminders (NWF feature)
+    // Key: "baseTaskName|action|deadline" → { contexts: [], rows: [], action, ... }
+    const perShowGroups = {};
+
     for (let row = 1; row < data.length; row++) {
       const taskData = data[row];
       const status = taskData[COL.STATUS];
@@ -88,34 +92,116 @@ function runDailyReminders() {
           isOptional: isOptional,
         };
 
-        const success = _executeAction(action, context, config);
+        // Check if this is a per-show task (contains " — " separator from NWF expansion)
+        const perShowSep = taskName.indexOf(' \u2014 ');
+        if (perShowSep !== -1 && show.productionType === PRODUCTION_TYPE.NWF) {
+          // Group per-show tasks for consolidated Slack reminders
+          const baseTask = taskName.substring(0, perShowSep);
+          const subShowName = taskName.substring(perShowSep + 3);
+          const groupKey = baseTask + '|' + action + '|' + context.deadline;
 
-        // Update status in the sheet if any notification was sent
-        if (success) {
-          // Check if this task should auto-complete after the first send
-          const isAutoComplete = _isAutoCompleteTask(context.task, show.productionType);
-          const newStatus = isAutoComplete ? STATUS.DONE : _statusAfterAction(action);
-          sheet.getRange(row + 1, COL.STATUS + 1).setValue(newStatus);
-          sheet.getRange(row + 1, COL.LAST_NOTIFIED + 1).setValue(new Date());
-          if (isAutoComplete) {
-            sheet.getRange(row + 1, COL.NOTES + 1).setValue('Auto-completed after sending');
+          if (!perShowGroups[groupKey]) {
+            perShowGroups[groupKey] = {
+              baseTask: baseTask,
+              action: action,
+              context: context, // Use first task's context as template
+              subShows: [],
+              rows: [],
+            };
+          }
+          perShowGroups[groupKey].subShows.push(subShowName);
+          perShowGroups[groupKey].rows.push(row);
+
+          // Still send individual emails for per-show tasks (they go to the show email)
+          if ((notifyVia === 'email' || notifyVia === 'both') && config.sendEmail) {
+            const recipientEmail = _resolveRecipientEmail(context, config);
+            if (recipientEmail) {
+              const customEmail = _getCustomEmailForTask(context.task, context.productionType);
+              let subject, body;
+              if (customEmail) {
+                subject = _renderTemplate(customEmail.emailSubject, context);
+                body = _renderTemplate(customEmail.emailBody, context);
+              } else {
+                const emailTemplate = _getTemplate(config.ss, _emailTemplateName(action));
+                if (emailTemplate) {
+                  subject = _renderTemplate(emailTemplate.subject, context);
+                  body = _renderTemplate(emailTemplate.body, context);
+                }
+              }
+              if (subject && body) {
+                const emailOk = sendEmailReminder(recipientEmail, subject, body, context);
+                _logSend(config.ss, context, 'email', action, emailOk, emailOk ? '' : 'Email send failed');
+              }
+            }
           }
         } else {
-          Logger.log('Warning: No notifications sent for "' + taskData[COL.TASK] + '" (' + show.name + '). notifyVia=' + notifyVia + ', sendSlack=' + config.sendSlack + ', sendEmail=' + config.sendEmail + ', showEmail=' + (show.showEmail || 'none') + ', slackChannel=' + (show.slackChannel || 'none'));
-        }
+          // Standard (non-per-show) task — send individually as before
+          const success = _executeAction(action, context, config);
 
-        // Add to reminder summary (only for messages sent to the show, not escalations)
-        if (action !== 'overdue') {
-          digestItems.push({
-            show: show.name,
-            task: context.task,
-            responsible: context.responsible,
-            deadline: context.deadline,
-            action: action,
-            daysUntil: daysUntil,
-            success: success,
-          });
+          // Update status in the sheet if any notification was sent
+          if (success) {
+            // Check if this task should auto-complete after the first send
+            const isAutoComplete = _isAutoCompleteTask(context.task, show.productionType);
+            const newStatus = isAutoComplete ? STATUS.DONE : _statusAfterAction(action);
+            sheet.getRange(row + 1, COL.STATUS + 1).setValue(newStatus);
+            sheet.getRange(row + 1, COL.LAST_NOTIFIED + 1).setValue(new Date());
+            if (isAutoComplete) {
+              sheet.getRange(row + 1, COL.NOTES + 1).setValue('Auto-completed after sending');
+            }
+          } else {
+            Logger.log('Warning: No notifications sent for "' + taskData[COL.TASK] + '" (' + show.name + '). notifyVia=' + notifyVia + ', sendSlack=' + config.sendSlack + ', sendEmail=' + config.sendEmail + ', showEmail=' + (show.showEmail || 'none') + ', slackChannel=' + (show.slackChannel || 'none'));
+          }
+
+          // Add to reminder summary (only for messages sent to the show, not escalations)
+          if (action !== 'overdue') {
+            digestItems.push({
+              show: show.name,
+              task: context.task,
+              responsible: context.responsible,
+              deadline: context.deadline,
+              action: action,
+              daysUntil: daysUntil,
+              success: success,
+            });
+          }
         }
+      }
+    }
+
+    // ── Send consolidated Slack messages for grouped per-show tasks ──────
+    for (const groupKey of Object.keys(perShowGroups)) {
+      const group = perShowGroups[groupKey];
+      if (!config.sendSlack) continue;
+      if (group.context.notifyVia !== 'slack' && group.context.notifyVia !== 'both') continue;
+
+      const slackResult = sendConsolidatedPerShowReminder(config, group.context, group.action, group.baseTask, group.subShows);
+      const ok = slackResult && slackResult.ok;
+      _logSend(config.ss, group.context, 'slack', group.action, ok, ok ? '' : (slackResult && slackResult.error || 'Unknown error'));
+
+      // Update status for all rows in the group
+      if (ok) {
+        const isAutoComplete = _isAutoCompleteTask(group.baseTask, show.productionType);
+        const newStatus = isAutoComplete ? STATUS.DONE : _statusAfterAction(group.action);
+        for (const r of group.rows) {
+          sheet.getRange(r + 1, COL.STATUS + 1).setValue(newStatus);
+          sheet.getRange(r + 1, COL.LAST_NOTIFIED + 1).setValue(new Date());
+          if (isAutoComplete) {
+            sheet.getRange(r + 1, COL.NOTES + 1).setValue('Auto-completed after sending');
+          }
+        }
+      }
+
+      // Add to digest
+      if (group.action !== 'overdue') {
+        digestItems.push({
+          show: show.name,
+          task: group.baseTask + ' (' + group.subShows.length + ' shows)',
+          responsible: group.context.responsible,
+          deadline: group.context.deadline,
+          action: group.action,
+          daysUntil: group.context.daysUntil,
+          success: ok,
+        });
       }
     }
   }

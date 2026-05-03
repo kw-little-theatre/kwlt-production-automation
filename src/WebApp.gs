@@ -140,6 +140,46 @@ function doPost(e) {
         return ContentService.createTextOutput('').setMimeType(ContentService.MimeType.TEXT);
       }
 
+      // ── Mark Done (per-show dropdown) interaction ──────────────────
+      if (actionId && actionId.startsWith('mark_done_per_show:')) {
+        // action_id format: "mark_done_per_show:ShowName:BaseTask"
+        // selected_option.value = individual show name
+        const parts = actionId.substring('mark_done_per_show:'.length);
+        const separatorIdx = parts.indexOf(':');
+        const showName = decodeURIComponent(parts.substring(0, separatorIdx));
+        const baseTask = decodeURIComponent(parts.substring(separatorIdx + 1));
+        const subShowName = action.selected_option ? action.selected_option.value : '';
+
+        if (!subShowName) {
+          _sendSlackResponseUrl(payload.response_url, '⚠️ No show selected. Please try again.', true);
+          return ContentService.createTextOutput('').setMimeType(ContentService.MimeType.TEXT);
+        }
+
+        // The full task name in the spreadsheet is "BaseTask — SubShowName"
+        const fullTaskName = baseTask + ' \u2014 ' + subShowName;
+        const result = _markTaskDone(showName, fullTaskName);
+        const userName = payload.user ? '<@' + payload.user.id + '>' : 'Someone';
+
+        if (result.success) {
+          // Send confirmation with undo to the channel
+          const config = _loadConfig(SpreadsheetApp.getActiveSpreadsheet());
+          const channel = payload.channel ? payload.channel.id : '';
+          if (channel && config.slackBotToken) {
+            _sendMarkDoneConfirmation(config, channel, showName, fullTaskName, userName);
+          } else {
+            _sendSlackResponseUrl(payload.response_url,
+              '✅ *' + baseTask + '* marked done for *' + subShowName + '* by ' + userName,
+              false);
+          }
+        } else {
+          _sendSlackResponseUrl(payload.response_url,
+            '⚠️ Could not mark task done: ' + result.message,
+            true);
+        }
+
+        return ContentService.createTextOutput('').setMimeType(ContentService.MimeType.TEXT);
+      }
+
       // ── Mark Done button interaction ─────────────────────────────────
       if (actionId && actionId.startsWith('mark_done:')) {
         // action_id format: "mark_done:ShowName:TaskText"

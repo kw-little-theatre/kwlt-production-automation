@@ -165,6 +165,72 @@ function sendSlackBlockMessageWithButton(config, context, action) {
   return parentResult;
 }
 
+// ─── Consolidated Per-Show Reminder ───────────────────────────────────────────
+
+/**
+ * Sends a single Slack message for a group of per-show tasks (NWF feature).
+ * Instead of N separate reminders for "Cast shows — Show 1", "Cast shows — Show 2", etc.,
+ * sends one message listing all pending shows with a dropdown to mark done per show.
+ *
+ * @param {Object} config — loaded config
+ * @param {Object} context — template context (from first task in group)
+ * @param {string} action — 'advance', 'urgent', or 'overdue'
+ * @param {string} baseTask — the base task name (without show suffix)
+ * @param {string[]} subShows — array of individual show names still pending
+ * @returns {{ ok: boolean, ts: string, error: string }}
+ */
+function sendConsolidatedPerShowReminder(config, context, action, baseTask, subShows) {
+  const isOptional = context.isOptional || false;
+  const emoji = isOptional ? '❔' : action === 'overdue' ? '🚨' : action === 'urgent' ? '⚠️' : '📋';
+  const color = isOptional ? '#a78bfa' : action === 'overdue' ? '#dc2626' : action === 'urgent' ? '#f59e0b' : '#2563eb';
+  const label = isOptional ? 'Optional' : action === 'overdue' ? 'Overdue' : action === 'urgent' ? 'Due tomorrow' : 'Upcoming';
+
+  const pendingList = subShows.map(function(s) { return '• ' + s; }).join('\n');
+
+  const taskLine = emoji + ' *' + label + ':* ' + baseTask +
+    '\n👤 *Responsible:* ' + context.responsible + '  |  📅 *Due:* ' + context.deadline +
+    '\n\n⏳ *Pending for ' + subShows.length + ' show(s):*\n' + pendingList;
+
+  const blocks = [
+    {
+      type: 'section',
+      text: { type: 'mrkdwn', text: taskLine },
+    },
+  ];
+
+  // Dropdown to mark done for a specific show
+  const options = subShows.map(function(s) {
+    return {
+      text: { type: 'plain_text', text: '✅ ' + s, emoji: true },
+      value: s,
+    };
+  });
+
+  blocks.push({
+    type: 'actions',
+    elements: [{
+      type: 'static_select',
+      placeholder: { type: 'plain_text', text: 'Mark done for...', emoji: true },
+      action_id: 'mark_done_per_show:' + encodeURIComponent(context.showName) + ':' + encodeURIComponent(baseTask),
+      options: options,
+    }],
+  });
+
+  if (isOptional) {
+    // Optional note
+    blocks.splice(1, 0, {
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: '_This task is optional — skip it if not applicable._' }],
+    });
+  }
+
+  const fallbackText = emoji + ' ' + label + ': ' + baseTask + ' (' + context.responsible + ') — due ' + context.deadline + ' — ' + subShows.length + ' shows pending';
+
+  return sendSlack(config, '', context.slackChannel, {
+    attachments: [{ color: color, fallback: fallbackText, blocks: blocks }],
+  });
+}
+
 // ─── Readthrough Date Prompt ──────────────────────────────────────────────────
 
 /**
