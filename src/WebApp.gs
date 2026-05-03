@@ -102,7 +102,7 @@ function doPost(e) {
         Logger.log('Readthrough date picker: show=' + showName + ', date=' + selectedDate + ', user=' + userName + ', isNWF=' + isNWF);
 
         if (isNWF) {
-          // NWF multi-date flow: track dates silently, defer notifications
+          // NWF multi-date flow: track dates silently, update message in place
           let existingDates = _getNWFReadthroughDates(ss, showName);
           if (existingDates.indexOf(selectedDate) === -1) {
             existingDates.push(selectedDate);
@@ -114,17 +114,8 @@ function doPost(e) {
           const latestDate = existingDates[existingDates.length - 1];
           _setReadthroughDateSilent(showName, latestDate);
 
-          // Show confirmation with "Add Another" and "Done — Notify" buttons
-          const config = _loadConfig(ss);
-          const channel = payload.channel ? payload.channel.id : '';
-          if (channel && config.slackBotToken) {
-            _sendNWFReadthroughConfirmation(config, channel, showName, existingDates, userName);
-          } else {
-            _sendSlackResponseUrl(payload.response_url,
-              '📅 Readthrough date *' + selectedDate + '* added for *' + showName + '*.\n' +
-              '📌 All dates: ' + existingDates.join(', '),
-              false);
-          }
+          // Update the SAME message in place with accumulated dates + picker + Done button
+          _replaceWithNWFReadthroughPicker(payload.response_url, showName, existingDates, userName);
         } else {
           // Standard single-date flow (Mainstage/Studio)
           var result = _setReadthroughDate(showName, selectedDate);
@@ -160,16 +151,10 @@ function doPost(e) {
       // ── Add another readthrough date (NWF) ───────────────────────────
       if (actionId && actionId.startsWith('add_readthrough_date:')) {
         const showName = decodeURIComponent(actionId.substring('add_readthrough_date:'.length));
-        const config = _loadConfig(SpreadsheetApp.getActiveSpreadsheet());
-        const channel = payload.channel ? payload.channel.id : '';
-
-        if (channel && config.slackBotToken) {
-          const existingDates = _getNWFReadthroughDates(SpreadsheetApp.getActiveSpreadsheet(), showName);
-          sendReadthroughDatePrompt(config, showName, channel, { isNWF: true, existingDates: existingDates });
-          _sendSlackResponseUrl(payload.response_url,
-            '📅 Date picker posted above — select another readthrough date.',
-            true);
-        }
+        const ss = SpreadsheetApp.getActiveSpreadsheet();
+        const existingDates = _getNWFReadthroughDates(ss, showName);
+        // Replace the current message with the date picker UI
+        _replaceWithNWFReadthroughPicker(payload.response_url, showName, existingDates, '');
 
         return ContentService.createTextOutput('').setMimeType(ContentService.MimeType.TEXT);
       }
@@ -622,6 +607,62 @@ function _sendNWFReadthroughConfirmation(config, channel, showName, allDates, us
   sendSlack(config, '', channel, {
     attachments: [{ color: '#6d28d9', fallback: '📅 Readthrough dates updated for ' + showName, blocks: blocks }],
   });
+}
+
+/**
+ * Replaces the current Slack message in place with the NWF readthrough
+ * date picker UI. Shows dates picked so far, a date picker for the next one,
+ * and a Done button. All in one message — no new messages posted.
+ */
+function _replaceWithNWFReadthroughPicker(responseUrl, showName, existingDates, userName) {
+  const dateSection = existingDates.length > 0
+    ? '\n\n✅ *Dates set so far:*\n' + existingDates.map(function(d) { return '• ' + d; }).join('\n')
+    : '';
+
+  const headerText = '📅 *Readthrough Dates — ' + showName + '*' +
+    (userName ? ' (updated by ' + userName + ')' : '') +
+    dateSection +
+    '\n\nPick a date below to add another readthrough, or click Done when finished.';
+
+  const blocks = [
+    {
+      type: 'section',
+      text: { type: 'mrkdwn', text: headerText },
+    },
+    {
+      type: 'actions',
+      elements: [
+        {
+          type: 'datepicker',
+          action_id: 'readthrough_date:' + encodeURIComponent(showName),
+          placeholder: { type: 'plain_text', text: 'Add readthrough date' },
+        },
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: '✅ Done — Notify Membership & Show Support', emoji: true },
+          style: 'primary',
+          action_id: 'finalize_readthrough_dates:' + encodeURIComponent(showName),
+        },
+      ],
+    },
+  ];
+
+  if (!responseUrl) return;
+
+  try {
+    UrlFetchApp.fetch(responseUrl, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify({
+        replace_original: true,
+        text: '📅 Readthrough dates for ' + showName,
+        blocks: blocks,
+      }),
+      muteHttpExceptions: true,
+    });
+  } catch (e) {
+    Logger.log('Failed to replace message via response_url: ' + e.message);
+  }
 }
 
 // ─── NWF Readthrough Date Tracking ────────────────────────────────────────────
