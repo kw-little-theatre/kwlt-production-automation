@@ -90,6 +90,7 @@ function runDailyReminders() {
           markDoneUrl: buildMarkDoneUrl(config.webAppUrl, show.name, taskData[COL.TASK]),
           productionType: show.productionType,
           isOptional: isOptional,
+          includeReadthroughPicker: _includesReadthroughPicker(taskName, show.productionType),
         };
 
         // Check if this is a per-show task (contains " — " separator from NWF expansion)
@@ -424,6 +425,20 @@ function _isAutoCompleteTask(taskName, productionType) {
   const tasks = getTaskTemplateForType(productionType || PRODUCTION_TYPE.MAINSTAGE);
   for (const t of tasks) {
     if (t.autoComplete && (t.task === taskName || taskName.indexOf(t.task) !== -1)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Checks if a task has the includeReadthroughPicker flag set.
+ * These tasks include an inline date picker for setting readthrough dates.
+ */
+function _includesReadthroughPicker(taskName, productionType) {
+  const tasks = getTaskTemplateForType(productionType || PRODUCTION_TYPE.MAINSTAGE);
+  for (const t of tasks) {
+    if (t.includeReadthroughPicker && (t.task === taskName || taskName.indexOf(t.task) !== -1)) {
       return true;
     }
   }

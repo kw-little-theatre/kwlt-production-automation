@@ -130,6 +130,25 @@ function sendSlackBlockMessageWithButton(config, context, action) {
     elements: buttons,
   });
 
+  // Include inline readthrough date picker if flagged (NWF "Schedule read-throughs" task)
+  if (context.includeReadthroughPicker) {
+    primaryBlocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: '📅 *Set a readthrough date:*\n_Pick a date below. You can add more dates later._',
+      },
+    });
+    primaryBlocks.push({
+      type: 'actions',
+      elements: [{
+        type: 'datepicker',
+        action_id: 'readthrough_date:' + encodeURIComponent(context.showName),
+        placeholder: { type: 'plain_text', text: 'Choose readthrough date' },
+      }],
+    });
+  }
+
   // Fallback text shown in notifications / previews (no show name)
   const fallbackText = emoji + ' ' + label + ': ' + context.task + ' (' + context.responsible + ') — due ' + context.deadline;
 

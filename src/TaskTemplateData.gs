@@ -1053,6 +1053,7 @@ function getNWFTaskTemplateData() {
       notifyVia: 'both',
       recurring: false,
       phase: 'Auditions',
+      includeReadthroughPicker: true,
     },
 
     // ── Readthrough & Rehearsal Phase ───────────────────────────────────────
