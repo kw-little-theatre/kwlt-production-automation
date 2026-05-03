@@ -38,6 +38,7 @@ function initialSetup() {
   _createShowSetupSheet(ss);
   _createTaskTemplateSheetMainstage(ss);
   _createTaskTemplateSheetStudio(ss);
+  _createTaskTemplateSheetNWF(ss);
   _createMessageTemplatesSheet(ss);
   _createSeasonOverviewSheet(ss);
   _createSendLogSheet(ss);
@@ -121,6 +122,9 @@ function _createShowSetupSheet(ss) {
     ANCHOR.TECH_WEEKEND_END + ' (auto)',
     // Optional (tasks skipped if blank)
     ANCHOR.READTHROUGH + ' (opt)',
+    // NWF-specific
+    'Show Names (NWF)',
+    'Readthrough Dates (NWF)',
     // Status & tracking
     'Timeline Created?',
     'Active?',
@@ -138,6 +142,8 @@ function _createShowSetupSheet(ss) {
   sheet.getRange(1, 10, 1, 3).setBackground('#bfdbfe');
   // Optional = light gray (col 13)
   sheet.getRange(1, 13, 1, 1).setBackground('#e5e7eb');
+  // NWF-specific = light orange (cols 14-15)
+  sheet.getRange(1, 14, 1, 2).setBackground('#fed7aa');
 
   // Format date columns (6-13)
   for (let i = 6; i <= 13; i++) {
@@ -146,6 +152,8 @@ function _createShowSetupSheet(ss) {
   sheet.setColumnWidth(1, 200); // Show Name
   sheet.setColumnWidth(2, 140); // Production Type
   sheet.setColumnWidth(3, 180); // Slack Channel
+  sheet.setColumnWidth(14, 250); // Show Names (NWF)
+  sheet.setColumnWidth(15, 200); // Readthrough Dates (NWF)
 
   // Add data validation for Production Type column (col 2)
   const typeRule = SpreadsheetApp.newDataValidation()
@@ -175,9 +183,10 @@ function _createShowSetupSheet(ss) {
 // ─── Task Template Sheets ─────────────────────────────────────────────────────
 
 function _createTaskTemplateSheet(ss) {
-  // Legacy: create both new sheets instead
+  // Legacy: create all new sheets instead
   _createTaskTemplateSheetMainstage(ss);
   _createTaskTemplateSheetStudio(ss);
+  _createTaskTemplateSheetNWF(ss);
 }
 
 function _createTaskTemplateSheetMainstage(ss) {
@@ -197,6 +206,16 @@ function _createTaskTemplateSheetStudio(ss) {
   sheet = ss.insertSheet(SHEET_TASK_TEMPLATE_STUDIO);
   sheet.setTabColor('#7c3aed');
   _populateTaskTemplateSheet(sheet, getStudioSeriesTaskTemplateData());
+  return sheet;
+}
+
+function _createTaskTemplateSheetNWF(ss) {
+  let sheet = ss.getSheetByName(SHEET_TASK_TEMPLATE_NWF);
+  if (sheet) return sheet;
+
+  sheet = ss.insertSheet(SHEET_TASK_TEMPLATE_NWF);
+  sheet.setTabColor('#ea580c');
+  _populateTaskTemplateSheet(sheet, getNWFTaskTemplateData());
   return sheet;
 }
 

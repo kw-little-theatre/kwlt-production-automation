@@ -38,6 +38,22 @@ Optional tasks (marked with `optional: true` in the task template) now get the f
 
 ---
 
+### ~~NWF (New Works Festival) production type~~ ✅ Implemented
+Added support for a third production type: **NWF** (New Works Festival). Festival-style productions with a two-tier team structure: a festival-level team (NWF Lead, NWF Producer, NWF SM, NWF TD) and individual show teams (Directors, etc.).
+
+**Key differences:**
+- Two-tier team: festival-level roles (NWF Lead, NWF Producer, NWF SM, NWF TD, NWF Team) + per-show teams (Directors, Individual Show Teams)
+- Per-show tasks (`perShow: true`) are expanded into one row per individual show during timeline generation (e.g., "Cast shows — Show 1", "Cast shows — Show 2")
+- Individual show names entered as newline-separated values in the "Show Names (NWF)" column in Show Setup
+- NWF uses Possession Date instead of Tech Weekend Start/End — Tech Weekend is not auto-derived for NWF
+- Script Freeze is a derived anchor (Opening Night - 42 days), used for NWF-specific tasks like script change freeze
+- 3-day auditions (same as Mainstage), Audition End = Start + 2
+- Readthrough Date uses the latest of 1-3 readthrough dates (single field, same as other types)
+- Separate template sheet: `📋 NWF Tasks`
+- ~50 tasks covering script selection, matching, auditions, rehearsals, build/tech week, shows, and post-show
+
+---
+
 ### Season-level task automation
 The Season Runbook (`KWLT Runbook Template_ Season`) has ~27 tasks that are currently not automated. These are board/committee-level tasks (rights acquisition, budgets, Eventbrite setup, etc.) that could follow the same anchor-date pattern with season-level anchor dates (board approval date, season announcement date, etc.).
 

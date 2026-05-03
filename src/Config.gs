@@ -9,9 +9,10 @@
 const PRODUCTION_TYPE = {
   MAINSTAGE:     'Mainstage',
   STUDIO_SERIES: 'Studio Series',
+  NWF:           'NWF',
 };
 
-const PRODUCTION_TYPES_LIST = [PRODUCTION_TYPE.MAINSTAGE, PRODUCTION_TYPE.STUDIO_SERIES];
+const PRODUCTION_TYPES_LIST = [PRODUCTION_TYPE.MAINSTAGE, PRODUCTION_TYPE.STUDIO_SERIES, PRODUCTION_TYPE.NWF];
 
 // ─── Sheet Names ──────────────────────────────────────────────────────────────
 const SHEET_CONFIG          = '⚙️ Config';
@@ -19,6 +20,7 @@ const SHEET_SHOW_SETUP      = '🎭 Show Setup';
 const SHEET_TASK_TEMPLATE   = '📋 Task Template';           // legacy name (pre-production-type)
 const SHEET_TASK_TEMPLATE_MAINSTAGE = '📋 Mainstage Tasks';
 const SHEET_TASK_TEMPLATE_STUDIO    = '📋 Studio Series Tasks';
+const SHEET_TASK_TEMPLATE_NWF       = '📋 NWF Tasks';
 const SHEET_MSG_TEMPLATES   = '✉️ Message Templates';
 const SHEET_SEASON_OVERVIEW = '📅 Season Overview';
 const SHEET_SEND_LOG        = '📨 Send Log';
@@ -37,6 +39,12 @@ const ANCHOR = {
   TECH_WEEKEND_END:    'Tech Weekend End',
   OPENING_NIGHT:       'Opening Night',
   CLOSING_NIGHT:       'Closing Night',
+};
+
+// ─── Derived Anchors (computed, not stored in Show Setup) ─────────────────────
+// These are calculated from sheet-backed anchors during timeline generation.
+const DERIVED_ANCHOR = {
+  SCRIPT_FREEZE: 'Script Freeze',   // NWF only: Opening Night - 42 days
 };
 
 // ─── Reminder Windows ─────────────────────────────────────────────────────────
