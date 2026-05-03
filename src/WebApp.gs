@@ -627,28 +627,52 @@ function _sendNWFReadthroughConfirmation(config, channel, showName, allDates, us
 // ─── NWF Readthrough Date Tracking ────────────────────────────────────────────
 
 /**
- * Retrieves all readthrough dates for an NWF show.
- * Stored as a comma-separated string in Script Properties.
- * @param {SpreadsheetApp.Spreadsheet} ss — unused, kept for consistency
+ * Retrieves all readthrough dates for an NWF show from the Show Setup sheet.
+ * Stored as newline-separated "YYYY-MM-DD" values in the "Readthrough Dates (NWF)" column.
+ * @param {SpreadsheetApp.Spreadsheet} ss
  * @param {string} showName
  * @returns {string[]} — array of "YYYY-MM-DD" date strings, sorted
  */
 function _getNWFReadthroughDates(ss, showName) {
-  const key = 'nwf_readthrough_dates_' + showName;
-  const raw = PropertiesService.getScriptProperties().getProperty(key);
-  if (!raw) return [];
-  return raw.split(',').filter(function(s) { return s.length > 0; }).sort();
+  const sheet = ss.getSheetByName(SHEET_SHOW_SETUP);
+  if (!sheet) return [];
+
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const col = headers.indexOf('Readthrough Dates (NWF)');
+  if (col === -1) return [];
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === showName) {
+      const raw = String(data[i][col] || '').trim();
+      if (!raw) return [];
+      return raw.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; }).sort();
+    }
+  }
+  return [];
 }
 
 /**
- * Saves all readthrough dates for an NWF show.
- * @param {SpreadsheetApp.Spreadsheet} ss — unused, kept for consistency
+ * Saves all readthrough dates for an NWF show to the Show Setup sheet.
+ * @param {SpreadsheetApp.Spreadsheet} ss
  * @param {string} showName
  * @param {string[]} dates — array of "YYYY-MM-DD" date strings
  */
 function _saveNWFReadthroughDates(ss, showName, dates) {
-  const key = 'nwf_readthrough_dates_' + showName;
-  PropertiesService.getScriptProperties().setProperty(key, dates.join(','));
+  const sheet = ss.getSheetByName(SHEET_SHOW_SETUP);
+  if (!sheet) return;
+
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const col = headers.indexOf('Readthrough Dates (NWF)');
+  if (col === -1) return;
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === showName) {
+      sheet.getRange(i + 1, col + 1).setValue(dates.join('\n'));
+      return;
+    }
+  }
 }
 
 /**

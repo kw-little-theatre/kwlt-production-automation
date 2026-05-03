@@ -122,8 +122,9 @@ function _createShowSetupSheet(ss) {
     ANCHOR.TECH_WEEKEND_END + ' (auto)',
     // Optional (tasks skipped if blank)
     ANCHOR.READTHROUGH + ' (opt)',
-    // NWF-specific: newline-separated individual show names
+    // NWF-specific
     'Show Names (NWF)',
+    'Readthrough Dates (NWF)',
     // Status & tracking
     'Timeline Created?',
     'Active?',
@@ -141,8 +142,8 @@ function _createShowSetupSheet(ss) {
   sheet.getRange(1, 10, 1, 3).setBackground('#bfdbfe');
   // Optional = light gray (col 13)
   sheet.getRange(1, 13, 1, 1).setBackground('#e5e7eb');
-  // NWF-specific = light orange (col 14)
-  sheet.getRange(1, 14, 1, 1).setBackground('#fed7aa');
+  // NWF-specific = light orange (cols 14-15)
+  sheet.getRange(1, 14, 1, 2).setBackground('#fed7aa');
 
   // Format date columns (6-13)
   for (let i = 6; i <= 13; i++) {
@@ -152,6 +153,7 @@ function _createShowSetupSheet(ss) {
   sheet.setColumnWidth(2, 140); // Production Type
   sheet.setColumnWidth(3, 180); // Slack Channel
   sheet.setColumnWidth(14, 250); // Show Names (NWF)
+  sheet.setColumnWidth(15, 200); // Readthrough Dates (NWF)
 
   // Add data validation for Production Type column (col 2)
   const typeRule = SpreadsheetApp.newDataValidation()
