@@ -726,7 +726,10 @@ function _saveNWFReadthroughDates(ss, showName, dates) {
 
   for (let i = 1; i < data.length; i++) {
     if (data[i][0] === showName) {
-      sheet.getRange(i + 1, col + 1).setValue(dates.join('\n'));
+      const cell = sheet.getRange(i + 1, col + 1);
+      // Force plain text format so Sheets doesn't auto-parse dates
+      cell.setNumberFormat('@');
+      cell.setValue(dates.join('\n'));
       return;
     }
   }
