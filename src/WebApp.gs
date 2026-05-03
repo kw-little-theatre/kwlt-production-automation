@@ -101,48 +101,57 @@ function doPost(e) {
 
         Logger.log('Readthrough date picker: show=' + showName + ', date=' + selectedDate + ', user=' + userName + ', isNWF=' + isNWF);
 
-        // For NWF: track all readthrough dates and only store the latest
-        let existingDates = [];
         if (isNWF) {
-          existingDates = _getNWFReadthroughDates(ss, showName);
-          // Add this date if not already tracked
+          // NWF multi-date flow: track dates silently, defer notifications
+          let existingDates = _getNWFReadthroughDates(ss, showName);
           if (existingDates.indexOf(selectedDate) === -1) {
             existingDates.push(selectedDate);
             existingDates.sort();
           }
-          // Store the latest date
-          const latestDate = existingDates[existingDates.length - 1];
           _saveNWFReadthroughDates(ss, showName, existingDates);
-          var result = _setReadthroughDate(showName, latestDate);
-        } else {
-          var result = _setReadthroughDate(showName, selectedDate);
-        }
 
-        Logger.log('Readthrough date update result: ' + JSON.stringify(result));
+          // Silently update the sheet to the latest date (no email notifications)
+          const latestDate = existingDates[existingDates.length - 1];
+          _setReadthroughDateSilent(showName, latestDate);
 
-        if (result.success) {
-          const reactivatedMsg = result.reactivated > 0
-            ? '\n' + result.reactivated + ' dependent task(s) reactivated — reminders scheduled.'
-            : '';
-          const changeMsg = result.wasChange ? ' (changed)' : '';
-
-          // Send confirmation with a "Change Date" button (+ "Add Another" for NWF)
+          // Show confirmation with "Add Another" and "Done — Notify" buttons
           const config = _loadConfig(ss);
           const channel = payload.channel ? payload.channel.id : '';
           if (channel && config.slackBotToken) {
-            _sendReadthroughConfirmation(config, channel, showName, selectedDate, userName,
-              reactivatedMsg + changeMsg,
-              { isNWF: isNWF, existingDates: existingDates });
+            _sendNWFReadthroughConfirmation(config, channel, showName, existingDates, userName);
           } else {
             _sendSlackResponseUrl(payload.response_url,
-              '✅ *Readthrough date for ' + showName + '* set to *' + selectedDate + '* by ' + userName + '.' +
-              reactivatedMsg + '\nMembership Director and Show Support have been notified.',
+              '📅 Readthrough date *' + selectedDate + '* added for *' + showName + '*.\n' +
+              '📌 All dates: ' + existingDates.join(', '),
               false);
           }
         } else {
-          _sendSlackResponseUrl(payload.response_url,
-            '⚠️ Could not set readthrough date: ' + result.message,
-            true);
+          // Standard single-date flow (Mainstage/Studio)
+          var result = _setReadthroughDate(showName, selectedDate);
+          Logger.log('Readthrough date update result: ' + JSON.stringify(result));
+
+          if (result.success) {
+            const reactivatedMsg = result.reactivated > 0
+              ? '\n' + result.reactivated + ' dependent task(s) reactivated — reminders scheduled.'
+              : '';
+            const changeMsg = result.wasChange ? ' (changed)' : '';
+
+            const config = _loadConfig(ss);
+            const channel = payload.channel ? payload.channel.id : '';
+            if (channel && config.slackBotToken) {
+              _sendReadthroughConfirmation(config, channel, showName, selectedDate, userName,
+                reactivatedMsg + changeMsg);
+            } else {
+              _sendSlackResponseUrl(payload.response_url,
+                '✅ *Readthrough date for ' + showName + '* set to *' + selectedDate + '* by ' + userName + '.' +
+                reactivatedMsg + '\nMembership Director and Show Support have been notified.',
+                false);
+            }
+          } else {
+            _sendSlackResponseUrl(payload.response_url,
+              '⚠️ Could not set readthrough date: ' + result.message,
+              true);
+          }
         }
 
         return ContentService.createTextOutput('').setMimeType(ContentService.MimeType.TEXT);
@@ -159,6 +168,70 @@ function doPost(e) {
           sendReadthroughDatePrompt(config, showName, channel, { isNWF: true, existingDates: existingDates });
           _sendSlackResponseUrl(payload.response_url,
             '📅 Date picker posted above — select another readthrough date.',
+            true);
+        }
+
+        return ContentService.createTextOutput('').setMimeType(ContentService.MimeType.TEXT);
+      }
+
+      // ── Finalize NWF readthrough dates (notify membership & show support) ──
+      if (actionId && actionId.startsWith('finalize_readthrough_dates:')) {
+        const showName = decodeURIComponent(actionId.substring('finalize_readthrough_dates:'.length));
+        const ss = SpreadsheetApp.getActiveSpreadsheet();
+        const userName = payload.user ? '<@' + payload.user.id + '>' : 'Someone';
+        const existingDates = _getNWFReadthroughDates(ss, showName);
+
+        if (existingDates.length === 0) {
+          _sendSlackResponseUrl(payload.response_url, '⚠️ No readthrough dates have been set yet.', true);
+          return ContentService.createTextOutput('').setMimeType(ContentService.MimeType.TEXT);
+        }
+
+        // Set the latest date with full notifications (email to membership, task reactivation)
+        const latestDate = existingDates[existingDates.length - 1];
+        const result = _setReadthroughDate(showName, latestDate);
+
+        const config = _loadConfig(ss);
+        const channel = payload.channel ? payload.channel.id : '';
+
+        if (result.success) {
+          const reactivatedMsg = result.reactivated > 0
+            ? '\n' + result.reactivated + ' dependent task(s) reactivated — reminders scheduled.'
+            : '';
+          const dateList = existingDates.map(function(d) { return '• ' + d; }).join('\n');
+
+          if (channel && config.slackBotToken) {
+            const blocks = [
+              {
+                type: 'section',
+                text: {
+                  type: 'mrkdwn',
+                  text: '✅ *Readthrough dates finalized for ' + showName + '* by ' + userName +
+                    '\n\n*Scheduled readthroughs:*\n' + dateList +
+                    '\n\nMembership Director and Show Support have been notified.' +
+                    reactivatedMsg,
+                },
+              },
+              {
+                type: 'actions',
+                elements: [{
+                  type: 'button',
+                  text: { type: 'plain_text', text: '📅 Change Dates', emoji: true },
+                  action_id: 'add_readthrough_date:' + encodeURIComponent(showName),
+                }],
+              },
+            ];
+
+            sendSlack(config, '', channel, {
+              attachments: [{ color: '#059669', fallback: '✅ Readthrough dates finalized for ' + showName, blocks: blocks }],
+            });
+          } else {
+            _sendSlackResponseUrl(payload.response_url,
+              '✅ Readthrough dates finalized. Membership & Show Support notified.',
+              false);
+          }
+        } else {
+          _sendSlackResponseUrl(payload.response_url,
+            '⚠️ Could not finalize: ' + result.message,
             true);
         }
 
@@ -482,48 +555,72 @@ function _sendMarkDoneConfirmation(config, channel, showName, taskText, userName
 /**
  * Sends a readthrough date confirmation with a "Change Date" button.
  */
-function _sendReadthroughConfirmation(config, channel, showName, dateStr, userName, extraMsg, opts) {
-  const isNWF = opts && opts.isNWF;
-  const existingDates = (opts && opts.existingDates) || [];
+function _sendReadthroughConfirmation(config, channel, showName, dateStr, userName, extraMsg) {
+  const blocks = [
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: '✅ *Readthrough date for ' + showName + '* set to *' + dateStr + '* by ' + userName + '.' +
+          (extraMsg || '') +
+          '\nMembership Director and Show Support have been notified.',
+      },
+    },
+    {
+      type: 'actions',
+      elements: [{
+        type: 'button',
+        text: { type: 'plain_text', text: '📅 Change Date', emoji: true },
+        action_id: 'change_readthrough_date:' + encodeURIComponent(showName),
+      }],
+    },
+  ];
 
-  let confirmText = '✅ *Readthrough date for ' + showName + '* set to *' + dateStr + '* by ' + userName + '.' +
-    (extraMsg || '') +
-    '\nMembership Director and Show Support have been notified.';
+  sendSlack(config, '', channel, {
+    attachments: [{ color: '#6d28d9', fallback: '✅ Readthrough date for ' + showName + ' set to ' + dateStr, blocks: blocks }],
+  });
+}
 
-  if (isNWF && existingDates.length > 0) {
-    confirmText += '\n\n📌 *All readthrough dates:* ' + existingDates.join(', ');
-  }
-
-  const buttons = [{
-    type: 'button',
-    text: { type: 'plain_text', text: '📅 Change Date', emoji: true },
-    action_id: 'change_readthrough_date:' + encodeURIComponent(showName),
-  }];
-
-  if (isNWF) {
-    buttons.push({
-      type: 'button',
-      text: { type: 'plain_text', text: '➕ Add Another Readthrough Date', emoji: true },
-      action_id: 'add_readthrough_date:' + encodeURIComponent(showName),
-    });
-  }
+/**
+ * Sends the NWF-specific readthrough confirmation with all dates listed
+ * and buttons to add more or finalize.
+ */
+function _sendNWFReadthroughConfirmation(config, channel, showName, allDates, userName) {
+  const dateList = allDates.map(function(d) { return '• ' + d; }).join('\n');
 
   const blocks = [
     {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: confirmText,
+        text: '📅 *Readthrough dates for ' + showName + '* updated by ' + userName +
+          '\n\n*Scheduled readthroughs:*\n' + dateList,
       },
     },
     {
       type: 'actions',
-      elements: buttons,
+      elements: [
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: '➕ Add Another Date', emoji: true },
+          action_id: 'add_readthrough_date:' + encodeURIComponent(showName),
+        },
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: '✅ Done — Notify Membership & Show Support', emoji: true },
+          style: 'primary',
+          action_id: 'finalize_readthrough_dates:' + encodeURIComponent(showName),
+        },
+      ],
+    },
+    {
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: '_Add all readthrough dates, then click Done to send one notification._' }],
     },
   ];
 
   sendSlack(config, '', channel, {
-    attachments: [{ color: '#6d28d9', fallback: '✅ Readthrough date for ' + showName + ' set to ' + dateStr, blocks: blocks }],
+    attachments: [{ color: '#6d28d9', fallback: '📅 Readthrough dates updated for ' + showName, blocks: blocks }],
   });
 }
 
@@ -552,6 +649,39 @@ function _getNWFReadthroughDates(ss, showName) {
 function _saveNWFReadthroughDates(ss, showName, dates) {
   const key = 'nwf_readthrough_dates_' + showName;
   PropertiesService.getScriptProperties().setProperty(key, dates.join(','));
+}
+
+/**
+ * Sets the readthrough date in Show Setup without sending any notifications.
+ * Used by NWF multi-date flow to silently update the sheet as dates are added.
+ * Task reactivation also deferred until finalization.
+ */
+function _setReadthroughDateSilent(showName, dateStr) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_SHOW_SETUP);
+  if (!sheet) return;
+
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const readthroughCol = headers.findIndex(function(h) {
+    return String(h).indexOf(ANCHOR.READTHROUGH) === 0;
+  });
+  if (readthroughCol === -1) return;
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === showName) {
+      const parsedDate = new Date(dateStr + 'T00:00:00');
+      if (isNaN(parsedDate.getTime())) return;
+      sheet.getRange(i + 1, readthroughCol + 1).setValue(parsedDate);
+
+      // Clear prompt tracking so daily prompts stop
+      const promptCol = headers.indexOf('Readthrough Prompt Last Sent');
+      if (promptCol !== -1) {
+        sheet.getRange(i + 1, promptCol + 1).setValue('');
+      }
+      return;
+    }
+  }
 }
 
 // ─── Readthrough Date Update ──────────────────────────────────────────────────
