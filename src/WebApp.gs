@@ -189,8 +189,7 @@ function doPost(e) {
         if (config.showSupportChannel && config.slackBotToken) {
           sendSlack(config,
             '📅 *Readthrough dates set for ' + showName + '*\n' +
-            existingDates.map(function(d) { return '• ' + d; }).join('\n') +
-            '\nSet by ' + userName,
+            existingDates.map(function(d) { return '• ' + d; }).join('\n'),
             config.showSupportChannel);
         }
 
