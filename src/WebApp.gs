@@ -685,9 +685,25 @@ function _getNWFReadthroughDates(ss, showName) {
 
   for (let i = 1; i < data.length; i++) {
     if (data[i][0] === showName) {
-      const raw = String(data[i][col] || '').trim();
+      const cellValue = data[i][col];
+      if (!cellValue) return [];
+
+      // If Sheets auto-parsed to a single Date object, format it
+      if (cellValue instanceof Date) {
+        return [Utilities.formatDate(cellValue, Session.getScriptTimeZone(), 'yyyy-MM-dd')];
+      }
+
+      const raw = String(cellValue).trim();
       if (!raw) return [];
-      return raw.split('\n').map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; }).sort();
+      return raw.split('\n').map(function(s) {
+        s = s.trim();
+        // Handle Date objects that got stringified with full format
+        const parsed = new Date(s);
+        if (!isNaN(parsed.getTime()) && s.length > 10) {
+          return Utilities.formatDate(parsed, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+        }
+        return s;
+      }).filter(function(s) { return s.length > 0; }).sort();
     }
   }
   return [];
