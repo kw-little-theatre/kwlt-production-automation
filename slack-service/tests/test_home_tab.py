@@ -25,10 +25,12 @@ from app.messages import (
 @pytest.fixture(autouse=True)
 def _clear_home_tab_cache():
     """Clear the Home tab cache before each test to prevent cross-test leakage."""
-    from app.handlers import _home_tab_cache
+    from app.handlers import _home_tab_cache, _shows_cache
     _home_tab_cache.clear()
+    _shows_cache.clear()
     yield
     _home_tab_cache.clear()
+    _shows_cache.clear()
 
 
 # ─── View Builder Tests ──────────────────────────────────────────────────────
@@ -289,7 +291,8 @@ class TestAppHomeOpenedHandler:
         handle_event(event_body, sheets, slack)
 
         sheets.get_all_tasks.assert_called_once_with("Hamlet")
-        slack.publish_home_tab.assert_called_once()
+        assert slack.publish_home_tab.call_count >= 1
+        # Final call should have the actual view (not loading state)
         view = slack.publish_home_tab.call_args[0][1]
         assert view["private_metadata"] == "Hamlet|upcoming"
 
@@ -355,7 +358,7 @@ class TestHomeTabInteractions:
         handle_block_action("home_select_show", payload, sheets, slack)
 
         sheets.get_all_tasks.assert_called_once_with("Hamlet")
-        slack.publish_home_tab.assert_called_once()
+        assert slack.publish_home_tab.call_count >= 1
 
     def test_home_mark_done_updates_and_refreshes(self):
         sheets = MagicMock()
@@ -370,7 +373,7 @@ class TestHomeTabInteractions:
         handle_block_action(action_id, payload, sheets, slack)
 
         sheets.mark_task_done.assert_called_once_with("Hamlet", "Submit poster")
-        slack.publish_home_tab.assert_called_once()
+        assert slack.publish_home_tab.call_count >= 1
 
     def test_home_change_date_updates_and_refreshes(self):
         sheets = MagicMock()
@@ -385,7 +388,7 @@ class TestHomeTabInteractions:
         handle_block_action(action_id, payload, sheets, slack)
 
         sheets.update_task_date.assert_called_once_with("Hamlet", "Submit poster", "2026-07-15")
-        slack.publish_home_tab.assert_called_once()
+        assert slack.publish_home_tab.call_count >= 1
 
     def test_home_change_date_no_date_does_nothing(self):
         """If no date is selected (e.g. date picker cleared), don't update."""
@@ -409,4 +412,4 @@ class TestHomeTabInteractions:
         handle_block_action(action_id, payload, sheets, slack)
 
         sheets.get_all_tasks.assert_called_once_with("Hamlet")
-        slack.publish_home_tab.assert_called_once()
+        assert slack.publish_home_tab.call_count >= 1

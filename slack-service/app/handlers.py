@@ -47,9 +47,10 @@ logger = logging.getLogger(__name__)
 _home_tab_locks: dict[str, threading.Lock] = {}
 _locks_lock = threading.Lock()
 
-# Per-user cache for Home tab data (avoids re-fetching on tab switches)
+# Global cache for Home tab data — keyed by show name (not per-user, since data is the same)
 _home_tab_cache: dict[str, dict] = {}
-HOME_TAB_CACHE_TTL = 30  # seconds
+_shows_cache: dict[str, object] = {}  # cached show list
+HOME_TAB_CACHE_TTL = 300  # 5 minutes
 
 
 def _get_user_lock(user_id: str) -> threading.Lock:
@@ -61,22 +62,29 @@ def _get_user_lock(user_id: str) -> threading.Lock:
 
 
 def _get_cached_data(user_id: str, show_name: str) -> Optional[dict]:
-    """Get cached sheet data if still fresh."""
-    key = f"{user_id}:{show_name}"
-    cached = _home_tab_cache.get(key)
+    """Get cached sheet data if still fresh. Cache is global (keyed by show, not user)."""
+    cached = _home_tab_cache.get(show_name)
     if cached and time.time() - cached["ts"] < HOME_TAB_CACHE_TTL:
         return cached
     return None
 
 
+def _get_cached_shows() -> Optional[list]:
+    """Get cached show list if still fresh."""
+    cached = _shows_cache.get("shows")
+    if cached and time.time() - cached["ts"] < HOME_TAB_CACHE_TTL:
+        return cached["data"]
+    return None
+
+
 def _set_cached_data(user_id: str, show_name: str, all_shows: list, task_groups: dict) -> None:
-    """Cache sheet data for a user+show."""
-    key = f"{user_id}:{show_name}"
-    _home_tab_cache[key] = {
+    """Cache sheet data globally by show name."""
+    _home_tab_cache[show_name] = {
         "ts": time.time(),
         "all_shows": all_shows,
         "task_groups": task_groups,
     }
+    _shows_cache["shows"] = {"ts": time.time(), "data": all_shows}
 
 
 def handle_block_action(
@@ -580,7 +588,7 @@ def _handle_app_home_opened(event: dict, sheets: SheetRepository, slack: SlackCl
 
 def _refresh_home_tab(user_id: str, show_name: str, sheets: SheetRepository, slack: SlackClient, view_mode: str = "upcoming", invalidate_cache: bool = False) -> None:
     """Re-fetch task data and re-publish the Home tab for a user.
-    Uses per-user locking and caching to keep tab switches fast."""
+    Uses per-user locking, global caching, and a loading state for responsiveness."""
     lock = _get_user_lock(user_id)
     if not lock.acquire(blocking=False):
         logger.debug(f"Skipping Home tab refresh for {user_id} — already in progress")
@@ -588,16 +596,21 @@ def _refresh_home_tab(user_id: str, show_name: str, sheets: SheetRepository, sla
 
     try:
         if invalidate_cache:
-            key = f"{user_id}:{show_name}"
-            _home_tab_cache.pop(key, None)
+            _home_tab_cache.pop(show_name, None)
 
         cached = _get_cached_data(user_id, show_name)
         if cached:
+            # Cache hit — render immediately, no loading state needed
             all_shows = cached["all_shows"]
             task_groups = cached["task_groups"]
         else:
+            # Cache miss — show loading state, then fetch
+            _publish_loading_state(user_id, show_name, slack)
+
             try:
-                all_shows = sheets.get_all_active_shows()
+                all_shows = _get_cached_shows()
+                if all_shows is None:
+                    all_shows = sheets.get_all_active_shows()
                 task_groups = sheets.get_all_tasks(show_name)
                 _set_cached_data(user_id, show_name, all_shows, task_groups)
             except Exception:
@@ -609,3 +622,22 @@ def _refresh_home_tab(user_id: str, show_name: str, sheets: SheetRepository, sla
         slack.publish_home_tab(user_id, home_view)
     finally:
         lock.release()
+
+
+def _publish_loading_state(user_id: str, show_name: str, slack: SlackClient) -> None:
+    """Publish a lightweight loading view so the user sees instant feedback."""
+    loading_view = {
+        "type": "home",
+        "private_metadata": f"{show_name}|upcoming",
+        "blocks": [
+            {
+                "type": "header",
+                "text": {"type": "plain_text", "text": f"🎭 {show_name}", "emoji": True},
+            },
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "⏳ _Loading tasks…_"},
+            },
+        ],
+    }
+    slack.publish_home_tab(user_id, loading_view)
