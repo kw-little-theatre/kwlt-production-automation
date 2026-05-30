@@ -87,6 +87,36 @@ def handle_block_action(
     elif action_id.startswith("change_readthrough_date:"):
         _handle_change_readthrough_date(action_id, channel, response_url, sheets, slack)
 
+    elif action_id.startswith("change_task_date:"):
+        selected_date = payload.get("actions", [{}])[0].get("selected_date")
+        if selected_date:
+            try:
+                show_name, task_text = _parse_action_id(action_id, "change_task_date:")
+                user_name = f"<@{payload['user']['id']}>" if payload.get("user") else "Someone"
+                result = sheets.update_task_date(show_name, task_text, selected_date)
+
+                if result.success:
+                    slack.send_response_url(
+                        response_url,
+                        f"📅 *{task_text}* deadline changed to *{selected_date}* by {user_name}",
+                        ephemeral=False,
+                    )
+                    # Notify show support
+                    if settings.show_support_channel:
+                        slack.send_message(
+                            settings.show_support_channel,
+                            text=f"📅 *Date changed — {show_name}*\n*{task_text}* deadline moved to *{selected_date}* by {user_name}",
+                        )
+                else:
+                    slack.send_response_url(
+                        response_url,
+                        f"⚠️ Could not change date: {result.message}",
+                        ephemeral=True,
+                    )
+            except ValueError as e:
+                logger.error(f"Malformed change_task_date action_id: {e}")
+                slack.send_response_url(response_url, "⚠️ Something went wrong parsing that action.", ephemeral=True)
+
     elif action_id.startswith("home_select_show"):
         selected = payload.get("actions", [{}])[0].get("selected_option", {})
         show_name = selected.get("value", "")
@@ -104,13 +134,32 @@ def handle_block_action(
         except ValueError as e:
             logger.error(f"Malformed home_mark_done action_id: {e}")
 
+    elif action_id.startswith("home_mark_undone:"):
+        try:
+            show_name, task_text = _parse_action_id(action_id, "home_mark_undone:")
+            sheets.mark_task_undone(show_name, task_text)
+            user_id = payload.get("user", {}).get("id", "")
+            if user_id:
+                _refresh_home_tab(user_id, show_name, sheets, slack, view_mode="completed")
+        except ValueError as e:
+            logger.error(f"Malformed home_mark_undone action_id: {e}")
+
     elif action_id.startswith("home_change_date:"):
         selected_date = payload.get("actions", [{}])[0].get("selected_date")
         if selected_date:
             try:
                 show_name, task_text = _parse_action_id(action_id, "home_change_date:")
-                sheets.update_task_date(show_name, task_text, selected_date)
+                result = sheets.update_task_date(show_name, task_text, selected_date)
+                user_name = f"<@{payload['user']['id']}>" if payload.get("user") else "Someone"
                 user_id = payload.get("user", {}).get("id", "")
+
+                # Notify show support channel about the date change
+                if result.success and settings.show_support_channel:
+                    slack.send_message(
+                        settings.show_support_channel,
+                        text=f"📅 *Date changed — {show_name}*\n*{task_text}* deadline moved to *{selected_date}* by {user_name}",
+                    )
+
                 if user_id:
                     _refresh_home_tab(user_id, show_name, sheets, slack)
             except ValueError as e:
@@ -121,6 +170,30 @@ def handle_block_action(
         user_id = payload.get("user", {}).get("id", "")
         if user_id:
             _refresh_home_tab(user_id, show_name, sheets, slack)
+
+    elif action_id.startswith("home_view_outstanding:"):
+        show_name = _parse_action_id_single(action_id, "home_view_outstanding:")
+        user_id = payload.get("user", {}).get("id", "")
+        if user_id:
+            _refresh_home_tab(user_id, show_name, sheets, slack, view_mode="upcoming")
+
+    elif action_id.startswith("home_view_completed:"):
+        show_name = _parse_action_id_single(action_id, "home_view_completed:")
+        user_id = payload.get("user", {}).get("id", "")
+        if user_id:
+            _refresh_home_tab(user_id, show_name, sheets, slack, view_mode="completed")
+
+    elif action_id.startswith("home_view_overdue:"):
+        show_name = _parse_action_id_single(action_id, "home_view_overdue:")
+        user_id = payload.get("user", {}).get("id", "")
+        if user_id:
+            _refresh_home_tab(user_id, show_name, sheets, slack, view_mode="overdue")
+
+    elif action_id.startswith("home_view_upcoming:"):
+        show_name = _parse_action_id_single(action_id, "home_view_upcoming:")
+        user_id = payload.get("user", {}).get("id", "")
+        if user_id:
+            _refresh_home_tab(user_id, show_name, sheets, slack, view_mode="upcoming")
 
     else:
         logger.warning(f"Unknown action_id: {action_id}")
@@ -446,11 +519,16 @@ def _handle_app_home_opened(event: dict, sheets: SheetRepository, slack: SlackCl
     # Check if the user previously selected a show (stored in private_metadata)
     view = event.get("view")
     previous_show = None
+    previous_mode = "upcoming"
     if view and isinstance(view, dict):
-        previous_show = view.get("private_metadata", "")
+        metadata = view.get("private_metadata", "")
+        if "|" in metadata:
+            previous_show, previous_mode = metadata.split("|", 1)
+        elif metadata:
+            previous_show = metadata
 
     if previous_show:
-        _refresh_home_tab(user_id, previous_show, sheets, slack)
+        _refresh_home_tab(user_id, previous_show, sheets, slack, view_mode=previous_mode)
     else:
         # First visit or no show selected — show the selector
         try:
@@ -463,7 +541,7 @@ def _handle_app_home_opened(event: dict, sheets: SheetRepository, slack: SlackCl
         slack.publish_home_tab(user_id, home_view)
 
 
-def _refresh_home_tab(user_id: str, show_name: str, sheets: SheetRepository, slack: SlackClient) -> None:
+def _refresh_home_tab(user_id: str, show_name: str, sheets: SheetRepository, slack: SlackClient, view_mode: str = "upcoming") -> None:
     """Re-fetch task data and re-publish the Home tab for a user."""
     try:
         all_shows = sheets.get_all_active_shows()
@@ -473,5 +551,5 @@ def _refresh_home_tab(user_id: str, show_name: str, sheets: SheetRepository, sla
         all_shows = []
         task_groups = {"overdue": [], "due_soon": [], "upcoming": [], "completed": []}
 
-    home_view = build_home_tab(show_name, task_groups, all_shows)
+    home_view = build_home_tab(show_name, task_groups, all_shows, view_mode=view_mode)
     slack.publish_home_tab(user_id, home_view)

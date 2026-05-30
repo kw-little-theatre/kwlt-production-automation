@@ -474,7 +474,9 @@ class SheetRepository:
                 except ValueError:
                     pass  # If the date format is unexpected, just update the date
 
-                sheet.batch_update(updates)
+                # USER_ENTERED ensures the date string becomes a real Sheets date
+                # (not plain text), which Apps Script's getValues() returns as a Date object.
+                sheet.batch_update(updates, value_input_option="USER_ENTERED")
 
                 self.log_send(show_name, current_task, row[COL.RESPONSIBLE], "slack", "date-change", True)
 

@@ -52,14 +52,20 @@ def build_reminder_blocks(context: dict, action: str) -> dict:
         },
     ]
 
-    # Buttons: Mark Done + Skip (for optional) or just Mark Done
+    # Buttons: Mark Done + date picker + Skip (for optional)
     buttons = [
         {
             "type": "button",
             "text": {"type": "plain_text", "text": "✅ Mark Done", "emoji": True},
             "style": "primary",
             "action_id": f"mark_done:{quote(show_name)}:{quote(task)}",
-        }
+        },
+        {
+            "type": "datepicker",
+            "action_id": f"change_task_date:{quote(show_name)}:{quote(task)}",
+            "placeholder": {"type": "plain_text", "text": "Change date"},
+            **({"initial_date": deadline} if _is_valid_date(deadline) else {}),
+        },
     ]
 
     if is_optional:
@@ -95,6 +101,9 @@ def build_reminder_blocks(context: dict, action: str) -> dict:
         detail_lines.append(f"📖 <{handbook_url}|Production Handbook>")
     if resources_url:
         detail_lines.append(f"📁 <{resources_url}|Show Resources Folder>")
+
+    detail_lines.append("")
+    detail_lines.append("🏠 <slack://app?team=T9X7WQFGR&id=A04D3GKETCP&tab=home|Open task dashboard> to see and manage all tasks")
 
     return {
         "attachments": attachments,
@@ -132,7 +141,13 @@ def build_overdue_escalation_blocks(context: dict) -> dict:
                     "text": {"type": "plain_text", "text": "✅ Mark Done", "emoji": True},
                     "style": "primary",
                     "action_id": f"mark_done:{quote(show_name)}:{quote(task)}",
-                }
+                },
+                {
+                    "type": "datepicker",
+                    "action_id": f"change_task_date:{quote(show_name)}:{quote(task)}",
+                    "placeholder": {"type": "plain_text", "text": "Reschedule"},
+                    **({"initial_date": deadline} if _is_valid_date(deadline) else {}),
+                },
             ],
         },
     ]
@@ -744,11 +759,11 @@ def build_home_tab_select_show(shows: list[dict]) -> dict:
     return {"type": "home", "blocks": blocks}
 
 
-def build_home_tab(show_name: str, task_groups: dict, all_shows: list[dict]) -> dict:
+def build_home_tab(show_name: str, task_groups: dict, all_shows: list[dict], view_mode: str = "upcoming") -> dict:
     """
     Builds the full Home tab view for a selected show.
     task_groups has keys: overdue, due_soon, upcoming, completed.
-    Each value is a list of dicts: task, responsible, deadline, status.
+    view_mode: "overdue", "upcoming" (default), or "completed".
     """
     # Header + show selector
     show_options = [
@@ -784,55 +799,99 @@ def build_home_tab(show_name: str, task_groups: dict, all_shows: list[dict]) -> 
                 },
             ],
         },
-        {"type": "divider"},
     ]
 
-    # ─── Task sections by urgency ────────────────────────────────────
-    section_configs = [
-        ("overdue", "🚨 Overdue"),
-        ("due_soon", "⚠️ Due Soon (next 7 days)"),
-        ("upcoming", "📋 Upcoming"),
-        ("completed", "✅ Completed"),
+    # View mode toggle buttons — one per category
+    overdue_count = len(task_groups.get("overdue", []))
+    due_soon_count = len(task_groups.get("due_soon", []))
+    upcoming_count = len(task_groups.get("upcoming", []))
+    completed_count = len(task_groups.get("completed", []))
+
+    toggles = [
+        ("overdue", f"🚨 Overdue ({overdue_count})", f"home_view_overdue:{quote(show_name)}"),
+        ("upcoming", f"📋 Upcoming ({upcoming_count + due_soon_count})", f"home_view_upcoming:{quote(show_name)}"),
+        ("completed", f"✅ Completed ({completed_count})", f"home_view_completed:{quote(show_name)}"),
     ]
 
-    total_tasks = sum(len(task_groups.get(key, [])) for key in ["overdue", "due_soon", "upcoming", "completed"])
+    toggle_elements = []
+    for mode, label, action_id in toggles:
+        btn = {
+            "type": "button",
+            "text": {"type": "plain_text", "text": label, "emoji": True},
+            "action_id": action_id,
+        }
+        if view_mode == mode:
+            btn["style"] = "primary"
+        toggle_elements.append(btn)
 
-    if total_tasks == 0:
-        blocks.append({
-            "type": "section",
-            "text": {"type": "mrkdwn", "text": "_No tasks found for this show._"},
-        })
-    else:
-        for group_key, group_label in section_configs:
-            tasks = task_groups.get(group_key, [])
-            if not tasks:
-                continue
+    blocks.append({
+        "type": "actions",
+        "elements": toggle_elements,
+    })
+    blocks.append({"type": "divider"})
 
-            # Section header
+    # ─── Render tasks based on view mode ─────────────────────────────
+    if view_mode == "completed":
+        tasks = task_groups.get("completed", [])
+        if not tasks:
             blocks.append({
-                "type": "header",
-                "text": {"type": "plain_text", "text": f"{group_label} ({len(tasks)})", "emoji": True},
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "_No completed tasks yet._"},
             })
-
-            # Task rows
-            is_completed = group_key == "completed"
+        else:
             for t in tasks:
-                blocks.extend(_build_home_task_row(show_name, t, is_completed))
+                blocks.extend(_build_home_task_row(show_name, t, is_completed=True))
+    elif view_mode == "overdue":
+        tasks = task_groups.get("overdue", [])
+        if not tasks:
+            blocks.append({
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "_No overdue tasks — you're on track! 🎉_"},
+            })
+        else:
+            for t in tasks:
+                blocks.extend(_build_home_task_row(show_name, t, is_completed=False))
+    else:
+        # Upcoming view — due soon + upcoming combined
+        due_soon = task_groups.get("due_soon", [])
+        upcoming = task_groups.get("upcoming", [])
+        all_upcoming = due_soon + upcoming
 
-            blocks.append({"type": "divider"})
+        if not all_upcoming:
+            blocks.append({
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "_No upcoming tasks — all caught up! 🎉_"},
+            })
+        else:
+            if due_soon:
+                blocks.append({
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": f"*⚠️ Due Soon (next 7 days)*  _({len(due_soon)})_"},
+                })
+                for t in due_soon:
+                    blocks.extend(_build_home_task_row(show_name, t, is_completed=False))
+                if upcoming:
+                    blocks.append({"type": "divider"})
 
-    # Keep blocks under 100 limit — trim completed if needed
+            if upcoming:
+                blocks.append({
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": f"*📋 Later*  _({len(upcoming)})_"},
+                })
+                for t in upcoming:
+                    blocks.extend(_build_home_task_row(show_name, t, is_completed=False))
+
+    # Keep blocks under 100 limit
     if len(blocks) > 95:
-        # Find where completed section starts and truncate
         blocks = blocks[:92]
         blocks.append({
             "type": "context",
-            "elements": [{"type": "mrkdwn", "text": "_Some completed tasks hidden. Check the spreadsheet for the full list._"}],
+            "elements": [{"type": "mrkdwn", "text": "_Some tasks hidden due to display limits. Check the spreadsheet for the full list._"}],
         })
 
     return {
         "type": "home",
-        "private_metadata": show_name,
+        "private_metadata": f"{show_name}|{view_mode}",
         "blocks": blocks,
     }
 
@@ -840,7 +899,7 @@ def build_home_tab(show_name: str, task_groups: dict, all_shows: list[dict]) -> 
 def _build_home_task_row(show_name: str, task: dict, is_completed: bool) -> list[dict]:
     """
     Builds the Block Kit blocks for a single task row in the Home tab.
-    Returns a list of 1-2 blocks (section + optional actions).
+    Returns a list of 1 block per task — compact layout.
     """
     task_text = task["task"]
     responsible = task["responsible"]
@@ -849,40 +908,44 @@ def _build_home_task_row(show_name: str, task: dict, is_completed: bool) -> list
 
     if is_completed:
         icon = "✅" if status == "Done" else "⏭️"
-        section_text = f"{icon} ~{task_text}~\n_{responsible}  ·  {deadline}_"
-        return [{
-            "type": "section",
-            "text": {"type": "mrkdwn", "text": section_text},
-        }]
+        section_text = f"{icon} {task_text}\n_{responsible}  ·  {deadline}_"
+        return [
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": section_text},
+                "accessory": {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "↩️ Undo", "emoji": True},
+                    "action_id": f"home_mark_undone:{quote(show_name)}:{quote(task_text)}",
+                },
+            },
+        ]
 
-    # Pending task — show with Done button and date picker as accessories
+    # Pending task — text row + compact actions row with date picker and Done button
     section_text = f"*{task_text}*\n{responsible}  ·  📅 {deadline}"
 
-    blocks = [
+    return [
         {
             "type": "section",
             "text": {"type": "mrkdwn", "text": section_text},
-            "accessory": {
-                "type": "datepicker",
-                "action_id": f"home_change_date:{quote(show_name)}:{quote(task_text)}",
-                "placeholder": {"type": "plain_text", "text": "Change date"},
-                **({"initial_date": deadline} if _is_valid_date(deadline) else {}),
-            },
         },
         {
             "type": "actions",
             "elements": [
                 {
+                    "type": "datepicker",
+                    "action_id": f"home_change_date:{quote(show_name)}:{quote(task_text)}",
+                    "placeholder": {"type": "plain_text", "text": "Change date"},
+                    **({"initial_date": deadline} if _is_valid_date(deadline) else {}),
+                },
+                {
                     "type": "button",
-                    "text": {"type": "plain_text", "text": "✅ Mark Done", "emoji": True},
-                    "style": "primary",
+                    "text": {"type": "plain_text", "text": "✅ Done", "emoji": True},
                     "action_id": f"home_mark_done:{quote(show_name)}:{quote(task_text)}",
                 },
             ],
         },
     ]
-
-    return blocks
 
 
 def _is_valid_date(date_str: str) -> bool:

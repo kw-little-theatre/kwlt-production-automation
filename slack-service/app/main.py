@@ -306,6 +306,7 @@ def reminders_digest(items: list[DigestItem]):
 
         sent = sum(1 for i in items if i.success)
         text += f"_{sent}/{len(items)} reminders sent successfully._"
+        text += "\n\n🏠 <slack://app?team=T9X7WQFGR&id=A04D3GKETCP&tab=home|Open task dashboard>"
 
         result = slack.send_message(settings.show_support_channel, text=text)
         return _sanitize_slack_result(result)
@@ -375,8 +376,12 @@ async def slack_events(request: Request, background_tasks: BackgroundTasks):
 def _process_event(event_body: dict) -> None:
     """Background task that processes a Slack event after the 200 response."""
     try:
+        event_type = event_body.get("event", {}).get("type", "unknown")
+        print(f"[DEBUG] Processing event: {event_type}", flush=True)
         sheets = _get_sheets()
         slack = _get_slack()
         handle_event(event_body, sheets, slack)
+        print(f"[DEBUG] Event {event_type} processed successfully", flush=True)
     except Exception as e:
+        print(f"[DEBUG] Error handling event: {e}", flush=True)
         logger.error(f"Error handling event: {e}", exc_info=True)

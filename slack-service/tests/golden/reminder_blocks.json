@@ -24,13 +24,22 @@
                 },
                 "style": "primary",
                 "action_id": "mark_done:Test%20Show:Submit%20poster%20for%20approval%20to%20Show%20Support%20representative"
+              },
+              {
+                "type": "datepicker",
+                "action_id": "change_task_date:Test%20Show:Submit%20poster%20for%20approval%20to%20Show%20Support%20representative",
+                "placeholder": {
+                  "type": "plain_text",
+                  "text": "Change date"
+                },
+                "initial_date": "2026-05-01"
               }
             ]
           }
         ]
       }
     ],
-    "thread_text": "*Deadline:* 2026-05-01\n*Status:* \ud83d\uddd3\ufe0f 5 days remaining\n\n\ud83d\udccc *Timing:* 6 weeks before opening (1 week before printing)\n\ud83d\udcd6 <https://example.com/handbook|Production Handbook>\n\ud83d\udcc1 <https://example.com/resources|Show Resources Folder>"
+    "thread_text": "*Deadline:* 2026-05-01\n*Status:* \ud83d\uddd3\ufe0f 5 days remaining\n\n\ud83d\udccc *Timing:* 6 weeks before opening (1 week before printing)\n\ud83d\udcd6 <https://example.com/handbook|Production Handbook>\n\ud83d\udcc1 <https://example.com/resources|Show Resources Folder>\n\n\ud83c\udfe0 <slack://app?team=T9X7WQFGR&id=A04D3GKETCP&tab=home|Open task dashboard> to see and manage all tasks"
   },
   "urgent": {
     "attachments": [
@@ -57,13 +66,22 @@
                 },
                 "style": "primary",
                 "action_id": "mark_done:Test%20Show:Submit%20poster%20for%20approval%20to%20Show%20Support%20representative"
+              },
+              {
+                "type": "datepicker",
+                "action_id": "change_task_date:Test%20Show:Submit%20poster%20for%20approval%20to%20Show%20Support%20representative",
+                "placeholder": {
+                  "type": "plain_text",
+                  "text": "Change date"
+                },
+                "initial_date": "2026-05-01"
               }
             ]
           }
         ]
       }
     ],
-    "thread_text": "*Deadline:* 2026-05-01\n*Status:* \ud83d\uddd3\ufe0f 1 days remaining\n\n\ud83d\udccc *Timing:* 6 weeks before opening (1 week before printing)\n\ud83d\udcd6 <https://example.com/handbook|Production Handbook>\n\ud83d\udcc1 <https://example.com/resources|Show Resources Folder>"
+    "thread_text": "*Deadline:* 2026-05-01\n*Status:* \ud83d\uddd3\ufe0f 1 days remaining\n\n\ud83d\udccc *Timing:* 6 weeks before opening (1 week before printing)\n\ud83d\udcd6 <https://example.com/handbook|Production Handbook>\n\ud83d\udcc1 <https://example.com/resources|Show Resources Folder>\n\n\ud83c\udfe0 <slack://app?team=T9X7WQFGR&id=A04D3GKETCP&tab=home|Open task dashboard> to see and manage all tasks"
   },
   "overdue": {
     "attachments": [
@@ -90,12 +108,21 @@
                 },
                 "style": "primary",
                 "action_id": "mark_done:Test%20Show:Submit%20poster%20for%20approval%20to%20Show%20Support%20representative"
+              },
+              {
+                "type": "datepicker",
+                "action_id": "change_task_date:Test%20Show:Submit%20poster%20for%20approval%20to%20Show%20Support%20representative",
+                "placeholder": {
+                  "type": "plain_text",
+                  "text": "Change date"
+                },
+                "initial_date": "2026-05-01"
               }
             ]
           }
         ]
       }
     ],
-    "thread_text": "*Deadline:* 2026-05-01\n*Status:* \ud83d\udea8 3 days overdue\n\n\ud83d\udccc *Timing:* 6 weeks before opening (1 week before printing)\n\ud83d\udcd6 <https://example.com/handbook|Production Handbook>\n\ud83d\udcc1 <https://example.com/resources|Show Resources Folder>"
+    "thread_text": "*Deadline:* 2026-05-01\n*Status:* \ud83d\udea8 3 days overdue\n\n\ud83d\udccc *Timing:* 6 weeks before opening (1 week before printing)\n\ud83d\udcd6 <https://example.com/handbook|Production Handbook>\n\ud83d\udcc1 <https://example.com/resources|Show Resources Folder>\n\n\ud83c\udfe0 <slack://app?team=T9X7WQFGR&id=A04D3GKETCP&tab=home|Open task dashboard> to see and manage all tasks"
   }
 }

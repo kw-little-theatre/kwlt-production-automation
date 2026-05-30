@@ -85,9 +85,13 @@ class TestBuildHomeTab:
         view = build_home_tab("Hamlet", self.TASK_GROUPS, self.SHOWS)
         assert view["type"] == "home"
 
-    def test_stores_show_in_private_metadata(self):
+    def test_stores_show_and_mode_in_private_metadata(self):
         view = build_home_tab("Hamlet", self.TASK_GROUPS, self.SHOWS)
-        assert view["private_metadata"] == "Hamlet"
+        assert view["private_metadata"] == "Hamlet|upcoming"
+
+    def test_completed_mode_metadata(self):
+        view = build_home_tab("Hamlet", self.TASK_GROUPS, self.SHOWS, view_mode="completed")
+        assert view["private_metadata"] == "Hamlet|completed"
 
     def test_contains_show_selector(self):
         view = build_home_tab("Hamlet", self.TASK_GROUPS, self.SHOWS)
@@ -104,32 +108,60 @@ class TestBuildHomeTab:
         refresh = [b for b in buttons if b["action_id"].startswith("home_refresh:")]
         assert len(refresh) == 1
 
-    def test_contains_urgency_section_headers(self):
+    def test_contains_view_toggle_buttons(self):
         view = build_home_tab("Hamlet", self.TASK_GROUPS, self.SHOWS)
-        headers = [b["text"]["text"] for b in view["blocks"] if b["type"] == "header"]
-        header_text = " ".join(headers).lower()
-        assert "overdue" in header_text
-        assert "due soon" in header_text
-        assert "upcoming" in header_text
-        assert "completed" in header_text
+        action_blocks = [b for b in view["blocks"] if b["type"] == "actions"]
+        toggle_buttons = [
+            e for a in action_blocks for e in a["elements"]
+            if e.get("type") == "button" and (
+                e.get("action_id", "").startswith("home_view_overdue:")
+                or e.get("action_id", "").startswith("home_view_upcoming:")
+                or e.get("action_id", "").startswith("home_view_completed:")
+            )
+        ]
+        assert len(toggle_buttons) == 3
+
+    def test_upcoming_mode_shows_pending_tasks(self):
+        view = build_home_tab("Hamlet", self.TASK_GROUPS, self.SHOWS, view_mode="upcoming")
+        section_texts = [
+            b["text"]["text"] for b in view["blocks"]
+            if b["type"] == "section"
+        ]
+        combined = " ".join(section_texts).lower()
+        assert "due soon" in combined or "later" in combined
+
+    def test_overdue_mode_shows_overdue_tasks(self):
+        view = build_home_tab("Hamlet", self.TASK_GROUPS, self.SHOWS, view_mode="overdue")
+        blocks = view["blocks"]
+        # Should have the overdue task
+        section_texts = [b["text"]["text"] for b in blocks if b["type"] == "section"]
+        assert any("Submit poster" in t for t in section_texts)
+
+    def test_completed_mode_shows_done_tasks(self):
+        view = build_home_tab("Hamlet", self.TASK_GROUPS, self.SHOWS, view_mode="completed")
+        blocks = view["blocks"]
+        section_texts = [b["text"]["text"] for b in blocks if b["type"] == "section"]
+        assert any("Rights check" in t for t in section_texts)
 
     def test_pending_tasks_have_done_button(self):
-        view = build_home_tab("Hamlet", self.TASK_GROUPS, self.SHOWS)
+        # Upcoming view shows due_soon (1) + upcoming (1) = 2
+        view = build_home_tab("Hamlet", self.TASK_GROUPS, self.SHOWS, view_mode="upcoming")
         action_blocks = [b for b in view["blocks"] if b["type"] == "actions"]
         done_buttons = [
             e for a in action_blocks for e in a["elements"]
             if e.get("type") == "button" and e.get("action_id", "").startswith("home_mark_done:")
         ]
-        # 3 pending tasks = 3 done buttons
-        assert len(done_buttons) == 3
+        assert len(done_buttons) == 2
 
     def test_pending_tasks_have_date_picker(self):
-        view = build_home_tab("Hamlet", self.TASK_GROUPS, self.SHOWS)
-        sections_with_datepicker = [
-            b for b in view["blocks"]
-            if b["type"] == "section" and b.get("accessory", {}).get("type") == "datepicker"
+        view = build_home_tab("Hamlet", self.TASK_GROUPS, self.SHOWS, view_mode="upcoming")
+        datepicker_actions = [
+            e for b in view["blocks"] if b["type"] == "actions"
+            for e in b["elements"]
+            if e.get("type") == "datepicker"
+            and e.get("action_id", "").startswith("home_change_date:")
         ]
-        assert len(sections_with_datepicker) == 3
+        assert len(datepicker_actions) == 2
 
     def test_completed_tasks_no_buttons(self):
         view = build_home_tab("Hamlet", self.TASK_GROUPS, self.SHOWS)
@@ -146,7 +178,7 @@ class TestBuildHomeTab:
         empty = {"overdue": [], "due_soon": [], "upcoming": [], "completed": []}
         view = build_home_tab("Hamlet", empty, self.SHOWS)
         texts = [b["text"]["text"] for b in view["blocks"] if b["type"] == "section"]
-        assert any("no tasks" in t.lower() for t in texts)
+        assert any("all caught up" in t.lower() for t in texts)
 
     def test_under_100_blocks(self):
         """View must stay under Slack's 100-block limit."""
@@ -163,25 +195,29 @@ class TestBuildHomeTaskRow:
         assert len(blocks) == 2
         assert blocks[0]["type"] == "section"
         assert blocks[1]["type"] == "actions"
+        # Actions block has date picker + Done button
+        elements = blocks[1]["elements"]
+        assert elements[0]["type"] == "datepicker"
+        assert elements[1]["type"] == "button"
 
     def test_completed_task_returns_one_block(self):
         task = {"task": "Rights check", "responsible": "Producer", "deadline": "2026-04-01", "status": "Done"}
         blocks = _build_home_task_row("Hamlet", task, is_completed=True)
         assert len(blocks) == 1
         assert blocks[0]["type"] == "section"
-        # Should have strikethrough
-        assert "~" in blocks[0]["text"]["text"]
+        # Should NOT have strikethrough
+        assert "~" not in blocks[0]["text"]["text"]
 
     def test_datepicker_has_initial_date_for_valid_date(self):
         task = {"task": "Submit", "responsible": "P", "deadline": "2026-06-01", "status": "Pending"}
         blocks = _build_home_task_row("Hamlet", task, is_completed=False)
-        datepicker = blocks[0]["accessory"]
+        datepicker = blocks[1]["elements"][0]
         assert datepicker["initial_date"] == "2026-06-01"
 
     def test_datepicker_no_initial_for_invalid_date(self):
         task = {"task": "Submit", "responsible": "P", "deadline": "6/1/2026", "status": "Pending"}
         blocks = _build_home_task_row("Hamlet", task, is_completed=False)
-        datepicker = blocks[0]["accessory"]
+        datepicker = blocks[1]["elements"][0]
         assert "initial_date" not in datepicker
 
 
@@ -246,7 +282,7 @@ class TestAppHomeOpenedHandler:
         sheets.get_all_tasks.assert_called_once_with("Hamlet")
         slack.publish_home_tab.assert_called_once()
         view = slack.publish_home_tab.call_args[0][1]
-        assert view["private_metadata"] == "Hamlet"
+        assert view["private_metadata"] == "Hamlet|upcoming"
 
     def test_messages_tab_ignored(self):
         """The 'messages' tab should not trigger a Home tab publish."""

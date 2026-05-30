@@ -166,11 +166,15 @@ class TestRemindersSendEndpoint:
         }
         response = client.post("/reminders/send", json=payload)
         assert response.status_code == 200
-        # Verify the attachments contain skip button
+        # Verify the attachments contain skip button and date picker
         call_args = mock_slack.send_message.call_args_list[0]
         attachments = call_args[1]["attachments"]
-        buttons = attachments[0]["blocks"][1]["elements"]
-        assert len(buttons) == 2  # Mark Done + Skip
+        elements = attachments[0]["blocks"][1]["elements"]
+        assert len(elements) == 3  # Mark Done + date picker + Skip
+        action_ids = [e.get("action_id", "") for e in elements]
+        assert any("mark_done:" in a for a in action_ids)
+        assert any("change_task_date:" in a for a in action_ids)
+        assert any("skip_task:" in a for a in action_ids)
 
 
 class TestRemindersDigestEndpoint:

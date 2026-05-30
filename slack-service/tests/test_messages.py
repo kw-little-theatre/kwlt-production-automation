@@ -189,16 +189,18 @@ class TestOptionalTaskBlocks:
     def test_optional_has_skip_button(self):
         ctx = {**REMINDER_CONTEXT, "is_optional": True}
         result = build_reminder_blocks(ctx, "advance")
-        buttons = result["attachments"][0]["blocks"][1]["elements"]
-        assert len(buttons) == 2
-        assert buttons[0]["action_id"].startswith("mark_done:")
-        assert buttons[1]["action_id"].startswith("skip_task:")
+        elements = result["attachments"][0]["blocks"][1]["elements"]
+        assert len(elements) == 3  # Mark Done + date picker + Skip
+        assert elements[0]["action_id"].startswith("mark_done:")
+        assert elements[1]["type"] == "datepicker"
+        assert elements[2]["action_id"].startswith("skip_task:")
 
     def test_non_optional_has_no_skip_button(self):
         result = build_reminder_blocks(REMINDER_CONTEXT, "advance")
-        buttons = result["attachments"][0]["blocks"][1]["elements"]
-        assert len(buttons) == 1
-        assert buttons[0]["action_id"].startswith("mark_done:")
+        elements = result["attachments"][0]["blocks"][1]["elements"]
+        assert len(elements) == 2  # Mark Done + date picker
+        assert elements[0]["action_id"].startswith("mark_done:")
+        assert elements[1]["type"] == "datepicker"
 
 
 # Note: TestColorCodes removed — colors are already verified by the golden
