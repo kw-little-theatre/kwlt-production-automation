@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 import re
 import threading
+import time
 from typing import Optional
 from urllib.parse import unquote
 
@@ -46,6 +47,10 @@ logger = logging.getLogger(__name__)
 _home_tab_locks: dict[str, threading.Lock] = {}
 _locks_lock = threading.Lock()
 
+# Per-user cache for Home tab data (avoids re-fetching on tab switches)
+_home_tab_cache: dict[str, dict] = {}
+HOME_TAB_CACHE_TTL = 30  # seconds
+
 
 def _get_user_lock(user_id: str) -> threading.Lock:
     """Get or create a lock for a specific user's Home tab operations."""
@@ -53,6 +58,25 @@ def _get_user_lock(user_id: str) -> threading.Lock:
         if user_id not in _home_tab_locks:
             _home_tab_locks[user_id] = threading.Lock()
         return _home_tab_locks[user_id]
+
+
+def _get_cached_data(user_id: str, show_name: str) -> Optional[dict]:
+    """Get cached sheet data if still fresh."""
+    key = f"{user_id}:{show_name}"
+    cached = _home_tab_cache.get(key)
+    if cached and time.time() - cached["ts"] < HOME_TAB_CACHE_TTL:
+        return cached
+    return None
+
+
+def _set_cached_data(user_id: str, show_name: str, all_shows: list, task_groups: dict) -> None:
+    """Cache sheet data for a user+show."""
+    key = f"{user_id}:{show_name}"
+    _home_tab_cache[key] = {
+        "ts": time.time(),
+        "all_shows": all_shows,
+        "task_groups": task_groups,
+    }
 
 
 def handle_block_action(
@@ -143,7 +167,7 @@ def handle_block_action(
             sheets.mark_task_done(show_name, task_text)
             user_id = payload.get("user", {}).get("id", "")
             if user_id:
-                _refresh_home_tab(user_id, show_name, sheets, slack)
+                _refresh_home_tab(user_id, show_name, sheets, slack, invalidate_cache=True)
         except ValueError as e:
             logger.error(f"Malformed home_mark_done action_id: {e}")
 
@@ -153,7 +177,7 @@ def handle_block_action(
             sheets.mark_task_undone(show_name, task_text)
             user_id = payload.get("user", {}).get("id", "")
             if user_id:
-                _refresh_home_tab(user_id, show_name, sheets, slack, view_mode="completed")
+                _refresh_home_tab(user_id, show_name, sheets, slack, view_mode="completed", invalidate_cache=True)
         except ValueError as e:
             logger.error(f"Malformed home_mark_undone action_id: {e}")
 
@@ -174,7 +198,7 @@ def handle_block_action(
                     )
 
                 if user_id:
-                    _refresh_home_tab(user_id, show_name, sheets, slack)
+                    _refresh_home_tab(user_id, show_name, sheets, slack, invalidate_cache=True)
             except ValueError as e:
                 logger.error(f"Malformed home_change_date action_id: {e}")
 
@@ -182,7 +206,7 @@ def handle_block_action(
         show_name = _parse_action_id_single(action_id, "home_refresh:")
         user_id = payload.get("user", {}).get("id", "")
         if user_id:
-            _refresh_home_tab(user_id, show_name, sheets, slack)
+            _refresh_home_tab(user_id, show_name, sheets, slack, invalidate_cache=True)
 
     elif action_id.startswith("home_view_outstanding:"):
         show_name = _parse_action_id_single(action_id, "home_view_outstanding:")
@@ -554,23 +578,33 @@ def _handle_app_home_opened(event: dict, sheets: SheetRepository, slack: SlackCl
         slack.publish_home_tab(user_id, home_view)
 
 
-def _refresh_home_tab(user_id: str, show_name: str, sheets: SheetRepository, slack: SlackClient, view_mode: str = "upcoming") -> None:
+def _refresh_home_tab(user_id: str, show_name: str, sheets: SheetRepository, slack: SlackClient, view_mode: str = "upcoming", invalidate_cache: bool = False) -> None:
     """Re-fetch task data and re-publish the Home tab for a user.
-    Uses per-user locking to prevent concurrent refreshes from racing."""
+    Uses per-user locking and caching to keep tab switches fast."""
     lock = _get_user_lock(user_id)
     if not lock.acquire(blocking=False):
-        # Another refresh is already in progress for this user — skip
         logger.debug(f"Skipping Home tab refresh for {user_id} — already in progress")
         return
-    try:
-        all_shows = sheets.get_all_active_shows()
-        task_groups = sheets.get_all_tasks(show_name)
-    except Exception:
-        logger.error("Error refreshing Home tab data", exc_info=True)
-        all_shows = []
-        task_groups = {"overdue": [], "due_soon": [], "upcoming": [], "completed": []}
 
     try:
+        if invalidate_cache:
+            key = f"{user_id}:{show_name}"
+            _home_tab_cache.pop(key, None)
+
+        cached = _get_cached_data(user_id, show_name)
+        if cached:
+            all_shows = cached["all_shows"]
+            task_groups = cached["task_groups"]
+        else:
+            try:
+                all_shows = sheets.get_all_active_shows()
+                task_groups = sheets.get_all_tasks(show_name)
+                _set_cached_data(user_id, show_name, all_shows, task_groups)
+            except Exception:
+                logger.error("Error refreshing Home tab data", exc_info=True)
+                all_shows = []
+                task_groups = {"overdue": [], "due_soon": [], "upcoming": [], "completed": []}
+
         home_view = build_home_tab(show_name, task_groups, all_shows, view_mode=view_mode)
         slack.publish_home_tab(user_id, home_view)
     finally:

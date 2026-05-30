@@ -11,6 +11,8 @@ Covers:
 from unittest.mock import MagicMock
 from urllib.parse import quote
 
+import pytest
+
 from app.handlers import handle_block_action, handle_event
 from app.messages import (
     _build_home_task_row,
@@ -18,6 +20,15 @@ from app.messages import (
     build_home_tab,
     build_home_tab_select_show,
 )
+
+
+@pytest.fixture(autouse=True)
+def _clear_home_tab_cache():
+    """Clear the Home tab cache before each test to prevent cross-test leakage."""
+    from app.handlers import _home_tab_cache
+    _home_tab_cache.clear()
+    yield
+    _home_tab_cache.clear()
 
 
 # ─── View Builder Tests ──────────────────────────────────────────────────────
