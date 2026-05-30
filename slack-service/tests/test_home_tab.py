@@ -8,10 +8,8 @@ Covers:
   - Sheet methods: get_all_active_shows, get_all_tasks, update_task_date
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from urllib.parse import quote
-
-import pytest
 
 from app.handlers import handle_block_action, handle_event
 from app.messages import (
