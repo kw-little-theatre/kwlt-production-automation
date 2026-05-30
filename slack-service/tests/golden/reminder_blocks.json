@@ -39,7 +39,7 @@
         ]
       }
     ],
-    "thread_text": "*Deadline:* 2026-05-01\n*Status:* \ud83d\uddd3\ufe0f 5 days remaining\n\n\ud83d\udccc *Timing:* 6 weeks before opening (1 week before printing)\n\ud83d\udcd6 <https://example.com/handbook|Production Handbook>\n\ud83d\udcc1 <https://example.com/resources|Show Resources Folder>\n\n\ud83c\udfe0 <slack://app?team=T9X7WQFGR&id=A04D3GKETCP&tab=home|Open task dashboard> to see and manage all tasks"
+    "thread_text": "*Deadline:* 2026-05-01\n*Status:* \ud83d\uddd3\ufe0f 5 days remaining\n\n\ud83d\udccc *Timing:* 6 weeks before opening (1 week before printing)\n\ud83d\udcd6 <https://example.com/handbook|Production Handbook>\n\ud83d\udcc1 <https://example.com/resources|Show Resources Folder>\n"
   },
   "urgent": {
     "attachments": [
@@ -81,7 +81,7 @@
         ]
       }
     ],
-    "thread_text": "*Deadline:* 2026-05-01\n*Status:* \ud83d\uddd3\ufe0f 1 days remaining\n\n\ud83d\udccc *Timing:* 6 weeks before opening (1 week before printing)\n\ud83d\udcd6 <https://example.com/handbook|Production Handbook>\n\ud83d\udcc1 <https://example.com/resources|Show Resources Folder>\n\n\ud83c\udfe0 <slack://app?team=T9X7WQFGR&id=A04D3GKETCP&tab=home|Open task dashboard> to see and manage all tasks"
+    "thread_text": "*Deadline:* 2026-05-01\n*Status:* \ud83d\uddd3\ufe0f 1 days remaining\n\n\ud83d\udccc *Timing:* 6 weeks before opening (1 week before printing)\n\ud83d\udcd6 <https://example.com/handbook|Production Handbook>\n\ud83d\udcc1 <https://example.com/resources|Show Resources Folder>\n"
   },
   "overdue": {
     "attachments": [
@@ -123,6 +123,6 @@
         ]
       }
     ],
-    "thread_text": "*Deadline:* 2026-05-01\n*Status:* \ud83d\udea8 3 days overdue\n\n\ud83d\udccc *Timing:* 6 weeks before opening (1 week before printing)\n\ud83d\udcd6 <https://example.com/handbook|Production Handbook>\n\ud83d\udcc1 <https://example.com/resources|Show Resources Folder>\n\n\ud83c\udfe0 <slack://app?team=T9X7WQFGR&id=A04D3GKETCP&tab=home|Open task dashboard> to see and manage all tasks"
+    "thread_text": "*Deadline:* 2026-05-01\n*Status:* \ud83d\udea8 3 days overdue\n\n\ud83d\udccc *Timing:* 6 weeks before opening (1 week before printing)\n\ud83d\udcd6 <https://example.com/handbook|Production Handbook>\n\ud83d\udcc1 <https://example.com/resources|Show Resources Folder>\n"
   }
 }
