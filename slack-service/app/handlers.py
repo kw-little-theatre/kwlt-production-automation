@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import re
+import threading
 from typing import Optional
 from urllib.parse import unquote
 
@@ -40,6 +41,18 @@ from app.sheets import SheetRepository
 from app.slack_client import SlackClient
 
 logger = logging.getLogger(__name__)
+
+# Per-user lock to prevent concurrent Home tab refreshes
+_home_tab_locks: dict[str, threading.Lock] = {}
+_locks_lock = threading.Lock()
+
+
+def _get_user_lock(user_id: str) -> threading.Lock:
+    """Get or create a lock for a specific user's Home tab operations."""
+    with _locks_lock:
+        if user_id not in _home_tab_locks:
+            _home_tab_locks[user_id] = threading.Lock()
+        return _home_tab_locks[user_id]
 
 
 def handle_block_action(
@@ -542,7 +555,13 @@ def _handle_app_home_opened(event: dict, sheets: SheetRepository, slack: SlackCl
 
 
 def _refresh_home_tab(user_id: str, show_name: str, sheets: SheetRepository, slack: SlackClient, view_mode: str = "upcoming") -> None:
-    """Re-fetch task data and re-publish the Home tab for a user."""
+    """Re-fetch task data and re-publish the Home tab for a user.
+    Uses per-user locking to prevent concurrent refreshes from racing."""
+    lock = _get_user_lock(user_id)
+    if not lock.acquire(blocking=False):
+        # Another refresh is already in progress for this user — skip
+        logger.debug(f"Skipping Home tab refresh for {user_id} — already in progress")
+        return
     try:
         all_shows = sheets.get_all_active_shows()
         task_groups = sheets.get_all_tasks(show_name)
@@ -551,5 +570,8 @@ def _refresh_home_tab(user_id: str, show_name: str, sheets: SheetRepository, sla
         all_shows = []
         task_groups = {"overdue": [], "due_soon": [], "upcoming": [], "completed": []}
 
-    home_view = build_home_tab(show_name, task_groups, all_shows, view_mode=view_mode)
-    slack.publish_home_tab(user_id, home_view)
+    try:
+        home_view = build_home_tab(show_name, task_groups, all_shows, view_mode=view_mode)
+        slack.publish_home_tab(user_id, home_view)
+    finally:
+        lock.release()
