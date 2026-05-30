@@ -183,8 +183,8 @@ clasp push
    - Go to [api.slack.com/apps](https://api.slack.com/apps) → create or select your KWLT app
    - **OAuth & Permissions** → add Bot Token Scope: `chat:write` → Install/reinstall to workspace
    - Copy the **Bot User OAuth Token** (starts with `xoxb-`)
-   - **Interactivity & Shortcuts** → toggle On → set Request URL to your Web App URL
-     _(required for Mark Done buttons, Undo, and readthrough date picker)_
+   - **Interactivity & Shortcuts** → toggle On → set Request URL to your Python service URL + `/slack/interactions`
+     _(required for Mark Done buttons, date pickers, Undo, and App Home tab actions)_
    - **Event Subscriptions** → toggle On → set Request URL to your Python service URL + `/slack/events`
      → Subscribe to bot events: `member_joined_channel`, `app_mention`, `app_home_opened`
      _(required for welcome messages, @bot help/FAQ, and App Home tab)_

@@ -306,7 +306,11 @@ def reminders_digest(items: list[DigestItem]):
 
         sent = sum(1 for i in items if i.success)
         text += f"_{sent}/{len(items)} reminders sent successfully._"
-        text += "\n\n🏠 <slack://app?team=T9X7WQFGR&id=A04D3GKETCP&tab=home|Open task dashboard>"
+
+        from app.messages import _home_tab_deep_link
+        home_link = _home_tab_deep_link()
+        if home_link:
+            text += f"\n\n🏠 <{home_link}|Open task dashboard>"
 
         result = slack.send_message(settings.show_support_channel, text=text)
         return _sanitize_slack_result(result)

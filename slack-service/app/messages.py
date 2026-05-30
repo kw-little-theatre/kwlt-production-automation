@@ -12,9 +12,18 @@ from __future__ import annotations
 
 from urllib.parse import quote
 
+from app.config import settings
+
 # Hardcoded URL — this is a known, trusted KWLT Google Drive folder.
 # CodeQL flags substring checks on URLs; this is a static constant, not user input.
 KWLT_HANDBOOK_URL = "https://drive.google.com/drive/folders/1_O9M8-m0Y3iGB0527LKbhTb3tlpP1KGW?usp=drive_link"  # noqa: E501
+
+
+def _home_tab_deep_link() -> str:
+    """Build a Slack deep link to the bot's App Home tab, or empty string if not configured."""
+    if settings.slack_team_id and settings.slack_app_id:
+        return f"slack://app?team={settings.slack_team_id}&id={settings.slack_app_id}&tab=home"
+    return ""
 
 
 def build_reminder_blocks(context: dict, action: str) -> dict:
@@ -107,7 +116,9 @@ def build_reminder_blocks(context: dict, action: str) -> dict:
         detail_lines.append(f"📁 <{resources_url}|Show Resources Folder>")
 
     detail_lines.append("")
-    detail_lines.append("🏠 <slack://app?team=T9X7WQFGR&id=A04D3GKETCP&tab=home|Open task dashboard> to see and manage all tasks")
+    home_link = _home_tab_deep_link()
+    if home_link:
+        detail_lines.append(f"🏠 <{home_link}|Open task dashboard> to see and manage all tasks")
 
     return {
         "attachments": attachments,
@@ -654,11 +665,11 @@ def build_faq_change_date() -> dict:
                 "type": "mrkdwn",
                 "text": (
                     "📅 *How do I change a date?*\n\n"
+                    "• *Task deadlines:* Use the 📅 date picker on any reminder message "
+                    "or in the App Home tab to change a deadline directly from Slack.\n\n"
                     "• *Readthrough date:* I'll send a date picker after auditions — "
                     "just pick a new date. You can also click 📅 *Change Date* on the "
                     "confirmation message.\n\n"
-                    "• *Task deadlines:* Edit the *Computed Deadline* column in your "
-                    "show's 🎬 timeline tab in the spreadsheet.\n\n"
                     "• *Anchor dates* (Opening Night, Audition Start, etc.): "
                     "Edit the *🎭 Show Setup* sheet. Note that changing anchor dates "
                     "doesn't automatically recompute existing task deadlines — you may "
@@ -953,5 +964,9 @@ def _build_home_task_row(show_name: str, task: dict, is_completed: bool) -> list
 
 def _is_valid_date(date_str: str) -> bool:
     """Check if a string is a valid YYYY-MM-DD date for Slack's datepicker."""
-    import re
-    return bool(re.match(r"^\d{4}-\d{2}-\d{2}$", date_str))
+    from datetime import datetime
+    try:
+        datetime.strptime(date_str, "%Y-%m-%d")
+        return True
+    except (ValueError, TypeError):
+        return False
