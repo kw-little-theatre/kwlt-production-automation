@@ -66,6 +66,16 @@ function getTaskTemplateData() {
 
     // ── Audition Preparation Phase ──────────────────────────────────────────
     {
+      task: 'Audition announcement',
+      responsible: 'Producer',
+      generalRule: '4 weeks before auditions',
+      anchorRef: ANCHOR.AUDITION_START,
+      offsetDays: -28,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Audition Prep',
+    },
+    {
       task: 'Set up audition pre-booking form and confirmation/reminder system (if doing pre-bookings)',
       responsible: 'Stage Manager',
       generalRule: '3 weeks before auditions',
@@ -161,6 +171,16 @@ function getTaskTemplateData() {
       recurring: false,
       phase: 'Auditions',
     },
+    {
+      task: 'Cast and crew announcements',
+      responsible: 'Producer',
+      generalRule: '1 week after auditions',
+      anchorRef: ANCHOR.AUDITION_END,
+      offsetDays: 7,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Auditions',
+    },
 
     // ── Readthrough & Rehearsal Phase ───────────────────────────────────────
     {
@@ -174,6 +194,26 @@ function getTaskTemplateData() {
       phase: 'Rehearsals',
     },
     // ── Rehearsal Phase (cont.) ────────────────────────────────────
+    {
+      task: 'Tickets on sale announcement',
+      responsible: 'Producer',
+      generalRule: '8 weeks before opening',
+      anchorRef: ANCHOR.OPENING_NIGHT,
+      offsetDays: -56,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Rehearsals',
+    },
+    {
+      task: 'Poster design and different asset sizes sent to comms',
+      responsible: 'Producer',
+      generalRule: '7 weeks before opening',
+      anchorRef: ANCHOR.OPENING_NIGHT,
+      offsetDays: -49,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Rehearsals',
+    },
     {
       task: 'Write press release and send to Communications Committee',
       responsible: 'Producer',
@@ -197,9 +237,9 @@ function getTaskTemplateData() {
     {
       task: 'Do headshots',
       responsible: 'Producer',
-      generalRule: '1 month before opening',
+      generalRule: '4 weeks before opening',
       anchorRef: ANCHOR.OPENING_NIGHT,
-      offsetDays: -30,
+      offsetDays: -28,
       notifyVia: 'slack',
       recurring: false,
       phase: 'Rehearsals',
@@ -207,9 +247,9 @@ function getTaskTemplateData() {
     {
       task: 'Do poster run around town',
       responsible: 'Producer',
-      generalRule: '1 month before opening',
+      generalRule: '5 weeks before opening',
       anchorRef: ANCHOR.OPENING_NIGHT,
-      offsetDays: -30,
+      offsetDays: -35,
       notifyVia: 'slack',
       recurring: false,
       phase: 'Rehearsals',
@@ -227,9 +267,19 @@ function getTaskTemplateData() {
     {
       task: 'Collect information for program from cast & crew',
       responsible: 'Producer',
-      generalRule: '1 month before tech weekend',
-      anchorRef: ANCHOR.TECH_WEEKEND_START,
-      offsetDays: -30,
+      generalRule: '4 weeks before opening',
+      anchorRef: ANCHOR.OPENING_NIGHT,
+      offsetDays: -28,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Rehearsals',
+    },
+    {
+      task: 'Program design',
+      responsible: 'Producer',
+      generalRule: '3 weeks before opening',
+      anchorRef: ANCHOR.OPENING_NIGHT,
+      offsetDays: -21,
       notifyVia: 'slack',
       recurring: false,
       phase: 'Rehearsals',
@@ -243,6 +293,17 @@ function getTaskTemplateData() {
       notifyVia: 'email',
       recurring: false,
       phase: 'Rehearsals',
+    },
+
+    {
+      task: 'Program printing',
+      responsible: 'Producer',
+      generalRule: '2 weeks before opening',
+      anchorRef: ANCHOR.OPENING_NIGHT,
+      offsetDays: -14,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Build & Tech',
     },
 
     // ── Build & Tech Phase ──────────────────────────────────────────────────
@@ -360,6 +421,16 @@ function getTaskTemplateData() {
       phase: 'Build & Tech',
     },
     {
+      task: 'Show opening announcement',
+      responsible: 'Producer',
+      generalRule: '3 days before opening',
+      anchorRef: ANCHOR.OPENING_NIGHT,
+      offsetDays: -3,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Build & Tech',
+    },
+    {
       task: 'Print photos for lobby and programs',
       responsible: 'Producer',
       generalRule: 'After dress rehearsals, before opening',
@@ -462,6 +533,16 @@ function getStudioSeriesTaskTemplateData() {
     },
 
     // ── Audition Preparation Phase ──────────────────────────────────────────
+    {
+      task: 'Audition announcement',
+      responsible: 'Producer',
+      generalRule: '4 weeks before auditions',
+      anchorRef: ANCHOR.AUDITION_START,
+      offsetDays: -28,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Audition Prep',
+    },
     {
       task: 'Set up audition pre-booking form and confirmation/reminder system (if doing pre-bookings)',
       responsible: 'Stage Manager',
@@ -568,6 +649,16 @@ function getStudioSeriesTaskTemplateData() {
       emailBody: 'Hello,\n\nAs auditions wrap up for {{SHOW_NAME}}, here are some important reminders about the casting process:\n\n1. Everyone who auditioned, regardless of whether they receive a role, must hear back about the result of their audition.\n2. Please encourage cast members not to announce their audition results until the cast list has been officially announced, to avoid hurt feelings.\n3. Please do not announce the cast list yourselves; KWLT shares it via official channels first. Once all the acceptances and rejections have gone out, please send the cast list to the Communications Committee (communications@kwlt.org).\n4. When scheduling the read-through, please invite the Show Support representative and Membership Director (membership@kwlt.org).\n\nMore detail around these rules can be found in the Policy Manual, under the Open Auditions Policy.\n\nIf you have any questions, please reach out to your Show Support representative.\n\n-- KWLT Show Support',
       emailSubject: '[KWLT] Casting Reminders -- {{SHOW_NAME}}',
     },
+    {
+      task: 'Cast and crew announcements',
+      responsible: 'Producer',
+      generalRule: '1 week after auditions',
+      anchorRef: ANCHOR.AUDITION_END,
+      offsetDays: 7,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Auditions',
+    },
 
     // ── Readthrough & Rehearsal Phase ───────────────────────────────────────
     {
@@ -592,7 +683,26 @@ function getStudioSeriesTaskTemplateData() {
     },
     // ── Rehearsal Phase (cont.) ────────────────────────────────────
     {
-
+      task: 'Tickets on sale announcement',
+      responsible: 'Producer',
+      generalRule: '8 weeks before opening',
+      anchorRef: ANCHOR.OPENING_NIGHT,
+      offsetDays: -56,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Rehearsals',
+    },
+    {
+      task: 'Poster design and different asset sizes sent to comms',
+      responsible: 'Producer',
+      generalRule: '7 weeks before opening',
+      anchorRef: ANCHOR.OPENING_NIGHT,
+      offsetDays: -49,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Rehearsals',
+    },
+    {
       task: 'Find photographer for headshots & dress rehearsal photos',
       responsible: 'Producer',
       generalRule: '5 weeks before opening (optional for studio series)',
@@ -617,9 +727,9 @@ function getStudioSeriesTaskTemplateData() {
     {
       task: 'Print poster',
       responsible: 'Producer',
-      generalRule: '1 week before poster run (optional for studio series)',
+      generalRule: '5 weeks before opening',
       anchorRef: ANCHOR.OPENING_NIGHT,
-      offsetDays: -37,
+      offsetDays: -35,
       notifyVia: 'slack',
       recurring: false,
       phase: 'Rehearsals',
@@ -628,9 +738,9 @@ function getStudioSeriesTaskTemplateData() {
     {
       task: 'Collect information for program from cast & crew',
       responsible: 'Producer',
-      generalRule: '1 month before possession day',
-      anchorRef: ANCHOR.BUILD_POSSESSION,
-      offsetDays: -30,
+      generalRule: '4 weeks before opening',
+      anchorRef: ANCHOR.OPENING_NIGHT,
+      offsetDays: -28,
       notifyVia: 'slack',
       recurring: false,
       phase: 'Rehearsals',
@@ -638,9 +748,9 @@ function getStudioSeriesTaskTemplateData() {
     {
       task: 'Do headshots',
       responsible: 'Producer',
-      generalRule: '1 month before opening (optional for studio series — if doing, do at an early rehearsal)',
+      generalRule: '4 weeks before opening',
       anchorRef: ANCHOR.OPENING_NIGHT,
-      offsetDays: -30,
+      offsetDays: -28,
       notifyVia: 'slack',
       recurring: false,
       phase: 'Rehearsals',
@@ -649,13 +759,23 @@ function getStudioSeriesTaskTemplateData() {
     {
       task: 'Do poster run around town',
       responsible: 'Producer',
-      generalRule: '1 month before opening (optional for studio series)',
+      generalRule: '5 weeks before opening',
       anchorRef: ANCHOR.OPENING_NIGHT,
-      offsetDays: -30,
+      offsetDays: -35,
       notifyVia: 'slack',
       recurring: false,
       phase: 'Rehearsals',
       optional: true,
+    },
+    {
+      task: 'Program design',
+      responsible: 'Producer',
+      generalRule: '3 weeks before opening',
+      anchorRef: ANCHOR.OPENING_NIGHT,
+      offsetDays: -21,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Rehearsals',
     },
     {
       task: 'Invite the board to your second dress rehearsal',
@@ -666,6 +786,17 @@ function getStudioSeriesTaskTemplateData() {
       notifyVia: 'email',
       recurring: false,
       phase: 'Rehearsals',
+    },
+
+    {
+      task: 'Program printing',
+      responsible: 'Producer',
+      generalRule: '2 weeks before opening',
+      anchorRef: ANCHOR.OPENING_NIGHT,
+      offsetDays: -14,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Build & Tech',
     },
 
     // ── Build & Tech Phase ──────────────────────────────────────────────────
@@ -769,6 +900,16 @@ function getStudioSeriesTaskTemplateData() {
       anchorRef: ANCHOR.BUILD_POSSESSION,
       offsetDays: 0,
       notifyVia: 'both',
+      recurring: false,
+      phase: 'Build & Tech',
+    },
+    {
+      task: 'Show opening announcement',
+      responsible: 'Producer',
+      generalRule: '3 days before opening',
+      anchorRef: ANCHOR.OPENING_NIGHT,
+      offsetDays: -3,
+      notifyVia: 'slack',
       recurring: false,
       phase: 'Build & Tech',
     },
@@ -904,6 +1045,16 @@ function getNWFTaskTemplateData() {
 
     // ── Audition Preparation Phase ──────────────────────────────────────────
     {
+      task: 'Audition announcement',
+      responsible: 'NWF Producer',
+      generalRule: '4 weeks before auditions',
+      anchorRef: ANCHOR.AUDITION_START,
+      offsetDays: -28,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Audition Prep',
+    },
+    {
       task: 'Create plan for rehearsals',
       responsible: 'Individual Show Teams',
       generalRule: 'By auditions',
@@ -1019,7 +1170,6 @@ function getNWFTaskTemplateData() {
       recurring: false,
       phase: 'Auditions',
       sendOnDate: true,
-      autoComplete: true,
       perShow: true,
       emailBody: 'Hello,\n\nAs auditions wrap up for {{SHOW_NAME}}, here are some important reminders about the casting process:\n\n1. Everyone who auditioned, regardless of whether they receive a role, must hear back about the result of their audition.\n2. Please encourage cast members not to announce their audition results until the cast list has been officially announced, to avoid hurt feelings.\n3. Please do not announce the cast list yourselves; KWLT shares it via official channels first. Once all the acceptances and rejections have gone out, please send the cast list to the Communications Committee (communications@kwlt.org).\n4. When scheduling the read-through, please invite the Show Support representative and Membership Director (membership@kwlt.org).\n\nMore detail around these rules can be found in the Policy Manual, under the Open Auditions Policy.\n\nIf you have any questions, please reach out to your Show Support representative.\n\n-- KWLT Show Support',
       emailSubject: '[KWLT] Casting Reminders -- {{SHOW_NAME}}',
@@ -1054,6 +1204,16 @@ function getNWFTaskTemplateData() {
       recurring: false,
       phase: 'Auditions',
       includeReadthroughPicker: true,
+    },
+    {
+      task: 'Cast and crew announcements',
+      responsible: 'NWF Producer',
+      generalRule: '1 week after auditions',
+      anchorRef: ANCHOR.AUDITION_END,
+      offsetDays: 7,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Auditions',
     },
 
     // ── Readthrough & Rehearsal Phase ───────────────────────────────────────
@@ -1092,6 +1252,26 @@ function getNWFTaskTemplateData() {
       optional: true,
     },
     {
+      task: 'Tickets on sale announcement',
+      responsible: 'NWF Producer',
+      generalRule: '8 weeks before opening',
+      anchorRef: ANCHOR.OPENING_NIGHT,
+      offsetDays: -56,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Rehearsals',
+    },
+    {
+      task: 'Poster design and different asset sizes sent to comms',
+      responsible: 'NWF Producer',
+      generalRule: '7 weeks before opening',
+      anchorRef: ANCHOR.OPENING_NIGHT,
+      offsetDays: -49,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Rehearsals',
+    },
+    {
       task: 'Write press release and send to Communications Committee',
       responsible: 'NWF Producer',
       generalRule: '6 weeks before opening',
@@ -1123,14 +1303,13 @@ function getNWFTaskTemplateData() {
     },
     {
       task: 'Script change freeze \u2014 stop making changes to scripts',
-      responsible: 'Individual Show Teams',
+      responsible: 'NWF Lead',
       generalRule: '6 weeks before opening',
       anchorRef: DERIVED_ANCHOR.SCRIPT_FREEZE,
       offsetDays: 0,
       notifyVia: 'both',
       recurring: false,
       phase: 'Rehearsals',
-      perShow: true,
     },
     {
       task: 'Finalize schedule for performances (which shows go on which nights)',
@@ -1155,7 +1334,7 @@ function getNWFTaskTemplateData() {
     {
       task: 'Print poster',
       responsible: 'NWF Producer',
-      generalRule: '1 week before poster run',
+      generalRule: '5 weeks before opening',
       anchorRef: ANCHOR.OPENING_NIGHT,
       offsetDays: -35,
       notifyVia: 'slack',
@@ -1165,9 +1344,9 @@ function getNWFTaskTemplateData() {
     {
       task: 'Collect information for program from cast & crew',
       responsible: 'NWF Producer',
-      generalRule: '1 month before possession',
-      anchorRef: ANCHOR.BUILD_POSSESSION,
-      offsetDays: -30,
+      generalRule: '4 weeks before opening',
+      anchorRef: ANCHOR.OPENING_NIGHT,
+      offsetDays: -28,
       notifyVia: 'slack',
       recurring: false,
       phase: 'Rehearsals',
@@ -1175,9 +1354,9 @@ function getNWFTaskTemplateData() {
     {
       task: 'Do or collect headshots',
       responsible: 'NWF Producer',
-      generalRule: '1 month before opening',
+      generalRule: '4 weeks before opening',
       anchorRef: ANCHOR.OPENING_NIGHT,
-      offsetDays: -30,
+      offsetDays: -28,
       notifyVia: 'slack',
       recurring: false,
       phase: 'Rehearsals',
@@ -1185,9 +1364,9 @@ function getNWFTaskTemplateData() {
     {
       task: 'Do poster run around town',
       responsible: 'NWF Producer',
-      generalRule: '1 month before opening',
+      generalRule: '5 weeks before opening',
       anchorRef: ANCHOR.OPENING_NIGHT,
-      offsetDays: -30,
+      offsetDays: -35,
       notifyVia: 'slack',
       recurring: false,
       phase: 'Rehearsals',
@@ -1204,6 +1383,16 @@ function getNWFTaskTemplateData() {
       perShow: true,
     },
     {
+      task: 'Program design',
+      responsible: 'NWF Producer',
+      generalRule: '3 weeks before opening',
+      anchorRef: ANCHOR.OPENING_NIGHT,
+      offsetDays: -21,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Rehearsals',
+    },
+    {
       task: 'Invite people to dress rehearsals (Board, Show Support, other NWF shows, etc.)',
       responsible: 'NWF Team',
       generalRule: '2 weeks before opening',
@@ -1212,6 +1401,16 @@ function getNWFTaskTemplateData() {
       notifyVia: 'email',
       recurring: false,
       phase: 'Rehearsals',
+    },
+    {
+      task: 'Program printing',
+      responsible: 'NWF Producer',
+      generalRule: '2 weeks before opening',
+      anchorRef: ANCHOR.OPENING_NIGHT,
+      offsetDays: -14,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Build & Tech',
     },
 
     // \u2500\u2500 Build & Tech Phase \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
@@ -1329,6 +1528,16 @@ function getNWFTaskTemplateData() {
       phase: 'Build & Tech',
       sendOnDate: true,
       autoComplete: true,
+    },
+    {
+      task: 'Show opening announcement',
+      responsible: 'NWF Producer',
+      generalRule: '3 days before opening',
+      anchorRef: ANCHOR.OPENING_NIGHT,
+      offsetDays: -3,
+      notifyVia: 'slack',
+      recurring: false,
+      phase: 'Build & Tech',
     },
     {
       task: 'Print photos for lobby and programs',

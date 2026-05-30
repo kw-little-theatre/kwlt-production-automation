@@ -18,6 +18,11 @@ TEST_FILE="$SCRIPT_DIR/.clasp-test.json"
 # Spreadsheet IDs for the slack-service .env
 PROD_SPREADSHEET_ID="1HE83ZLd_OqXpvWGrMfpqzZi0M1OY3I8n0Icjotu6sVw"
 TEST_SPREADSHEET_ID="12srzqn-vTUUC0mYBT5RsOPqLWXeNB79152GcQKOoM5Y"
+
+# Show Support channel IDs
+PROD_SHOW_SUPPORT_CHANNEL="C04QABD5AFN"
+TEST_SHOW_SUPPORT_CHANNEL="C05FHSB239C"
+
 SLACK_ENV_FILE="$SCRIPT_DIR/slack-service/.env"
 
 # --- Helpers ---
@@ -68,11 +73,11 @@ _detect_env() {
 
 _switch_slack_env() {
   local env="$1"
-  local sheet_id
+  local sheet_id channel_id
 
   case "$env" in
-    prod) sheet_id="$PROD_SPREADSHEET_ID" ;;
-    test) sheet_id="$TEST_SPREADSHEET_ID" ;;
+    prod) sheet_id="$PROD_SPREADSHEET_ID"; channel_id="$PROD_SHOW_SUPPORT_CHANNEL" ;;
+    test) sheet_id="$TEST_SPREADSHEET_ID"; channel_id="$TEST_SHOW_SUPPORT_CHANNEL" ;;
   esac
 
   if [[ "$sheet_id" == "PASTE_YOUR_TEST_SPREADSHEET_ID_HERE" ]]; then
@@ -89,6 +94,14 @@ _switch_slack_env() {
       echo "SPREADSHEET_ID=${sheet_id}" >> "$SLACK_ENV_FILE"
     fi
     echo "Slack service SPREADSHEET_ID → ${sheet_id:0:12}…"
+
+    # Replace the SHOW_SUPPORT_CHANNEL line in-place
+    if grep -q '^SHOW_SUPPORT_CHANNEL=' "$SLACK_ENV_FILE"; then
+      sed -i '' "s|^SHOW_SUPPORT_CHANNEL=.*|SHOW_SUPPORT_CHANNEL=${channel_id}|" "$SLACK_ENV_FILE"
+    else
+      echo "SHOW_SUPPORT_CHANNEL=${channel_id}" >> "$SLACK_ENV_FILE"
+    fi
+    echo "Slack service SHOW_SUPPORT_CHANNEL → ${channel_id}"
   else
     echo "WARNING: slack-service/.env not found — skipping slack env update."
     return 1

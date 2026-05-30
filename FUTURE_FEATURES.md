@@ -130,11 +130,32 @@ Currently, if an anchor date (Opening Night, Audition Start, etc.) is changed in
    - Fallback: if Python service is unreachable, Apps Script sends Slack directly
    - **To activate**: deploy the Python service and set `PYTHON_SERVICE_URL` via Manage Secrets
 
-3. **Phase 4 — RAG Q&A**: Chunk + embed Production Handbook and Policy Manual, ChromaDB vector store, `POST /slack/events` for `app_mention` handler, GPT-4o-mini for answers, threaded Slack responses with source citations.
+3. ~~**Phase 3.5 — Welcome Message & @bot Help/FAQ**~~: ✅ Done
+   - `POST /slack/events` endpoint with URL verification challenge handling and Slack signature verification
+   - `member_joined_channel` event: bot posts a welcome message introducing itself when added to a channel
+   - `app_mention` event: keyword-matched FAQ responses (`@bot help`, `@bot deadlines`, `@bot contacts`, etc.)
+   - Live data: `@bot deadlines` and `@bot contacts` pull real-time data from the Google Sheet
+   - All responses sent as threaded replies to keep channels tidy
+   - 67 new tests (186 total)
+   - **To activate**: enable Event Subscriptions in your Slack app with Request URL → `<service-url>/slack/events`, subscribe to `member_joined_channel` and `app_mention` events
 
-4. **Phase 5 — Eval Harness**: 30-50 Q&A test cases, eval dimensions (retrieval recall, correctness, faithfulness, relevance), GPT-4o as judge, CI integration.
+4. ~~**Phase 3.7 — App Home Tab Dashboard**~~: ✅ Done
+   - Interactive per-user dashboard in the bot's App Home tab
+   - Show selector dropdown to switch between shows (persisted via `private_metadata`)
+   - Tasks grouped by urgency: Overdue, Due Soon, Upcoming, Completed
+   - Inline ✅ Mark Done buttons on each pending task
+   - Inline 📅 date pickers to change task deadlines directly from Slack
+   - 🔄 Refresh button + auto-refresh on every visit
+   - New sheet methods: `get_all_active_shows()`, `get_all_tasks()`, `update_task_date()`
+   - New Slack client method: `publish_home_tab()` (`views.publish`)
+   - 29 new tests (209 total)
+   - **To activate**: enable App Home in Slack app settings, subscribe to `app_home_opened` event
 
-5. **Deploy to Cloud Run**: `gcloud run deploy`, point Slack Interactivity URL permanently to Cloud Run URL.
+5. **Phase 4 — RAG Q&A**: Chunk + embed Production Handbook and Policy Manual, ChromaDB vector store, extend `app_mention` handler with LLM fallback, GPT-4o-mini for answers, threaded Slack responses with source citations.
+
+6. **Phase 5 — Eval Harness**: 30-50 Q&A test cases, eval dimensions (retrieval recall, correctness, faithfulness, relevance), GPT-4o as judge, CI integration.
+
+7. **Deploy to Cloud Run**: `gcloud run deploy`, point Slack Interactivity URL permanently to Cloud Run URL.
 
 ### Architecture decisions made
 Separate the Slack bot from the Apps Script spreadsheet into a standalone app that becomes the general-purpose hub for the KWLT ecosystem. The spreadsheet stays as the data layer and reminder engine; the Slack app becomes the interface for everything.

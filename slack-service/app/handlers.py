@@ -2,8 +2,9 @@
 KWLT Production Automation — Slack Interaction Handlers
 
 Business logic for handling Slack interactive component callbacks
-(buttons, date pickers). These are called by the FastAPI endpoints
-and coordinate between the SheetRepository and SlackClient.
+(buttons, date pickers) and Events API events (bot joins, @mentions).
+These are called by the FastAPI endpoints and coordinate between
+the SheetRepository and SlackClient.
 
 Port of the doPost() handler logic from WebApp.gs.
 """
@@ -11,13 +12,29 @@ Port of the doPost() handler logic from WebApp.gs.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Optional
 from urllib.parse import unquote
 
+from app.config import settings
+from app.constants import FAQ_KEYWORDS
 from app.messages import (
+    build_faq_about,
+    build_faq_change_date,
+    build_faq_contacts,
+    build_faq_contacts_no_show,
+    build_faq_deadlines,
+    build_faq_deadlines_no_show,
+    build_faq_handbook,
+    build_faq_mark_done,
+    build_faq_unknown,
+    build_help_menu,
+    build_home_tab,
+    build_home_tab_select_show,
     build_mark_done_confirmation,
     build_readthrough_confirmation,
     build_readthrough_date_prompt,
+    build_welcome_message,
 )
 from app.sheets import SheetRepository
 from app.slack_client import SlackClient
@@ -69,6 +86,114 @@ def handle_block_action(
 
     elif action_id.startswith("change_readthrough_date:"):
         _handle_change_readthrough_date(action_id, channel, response_url, sheets, slack)
+
+    elif action_id.startswith("change_task_date:"):
+        selected_date = payload.get("actions", [{}])[0].get("selected_date")
+        if selected_date:
+            try:
+                show_name, task_text = _parse_action_id(action_id, "change_task_date:")
+                user_name = f"<@{payload['user']['id']}>" if payload.get("user") else "Someone"
+                result = sheets.update_task_date(show_name, task_text, selected_date)
+
+                if result.success:
+                    slack.send_response_url(
+                        response_url,
+                        f"📅 *{task_text}* deadline changed to *{selected_date}* by {user_name}",
+                        ephemeral=False,
+                    )
+                    # Notify show support
+                    if settings.show_support_channel:
+                        slack.send_message(
+                            settings.show_support_channel,
+                            text=f"📅 *Date changed — {show_name}*\n*{task_text}* deadline moved to *{selected_date}* by {user_name}",
+                        )
+                else:
+                    slack.send_response_url(
+                        response_url,
+                        f"⚠️ Could not change date: {result.message}",
+                        ephemeral=True,
+                    )
+            except ValueError as e:
+                logger.error(f"Malformed change_task_date action_id: {e}")
+                slack.send_response_url(response_url, "⚠️ Something went wrong parsing that action.", ephemeral=True)
+
+    elif action_id.startswith("home_select_show"):
+        selected = payload.get("actions", [{}])[0].get("selected_option", {})
+        show_name = selected.get("value", "")
+        user_id = payload.get("user", {}).get("id", "")
+        if show_name and user_id:
+            _refresh_home_tab(user_id, show_name, sheets, slack)
+
+    elif action_id.startswith("home_mark_done:"):
+        try:
+            show_name, task_text = _parse_action_id(action_id, "home_mark_done:")
+            sheets.mark_task_done(show_name, task_text)
+            user_id = payload.get("user", {}).get("id", "")
+            if user_id:
+                _refresh_home_tab(user_id, show_name, sheets, slack)
+        except ValueError as e:
+            logger.error(f"Malformed home_mark_done action_id: {e}")
+
+    elif action_id.startswith("home_mark_undone:"):
+        try:
+            show_name, task_text = _parse_action_id(action_id, "home_mark_undone:")
+            sheets.mark_task_undone(show_name, task_text)
+            user_id = payload.get("user", {}).get("id", "")
+            if user_id:
+                _refresh_home_tab(user_id, show_name, sheets, slack, view_mode="completed")
+        except ValueError as e:
+            logger.error(f"Malformed home_mark_undone action_id: {e}")
+
+    elif action_id.startswith("home_change_date:"):
+        selected_date = payload.get("actions", [{}])[0].get("selected_date")
+        if selected_date:
+            try:
+                show_name, task_text = _parse_action_id(action_id, "home_change_date:")
+                result = sheets.update_task_date(show_name, task_text, selected_date)
+                user_name = f"<@{payload['user']['id']}>" if payload.get("user") else "Someone"
+                user_id = payload.get("user", {}).get("id", "")
+
+                # Notify show support channel about the date change
+                if result.success and settings.show_support_channel:
+                    slack.send_message(
+                        settings.show_support_channel,
+                        text=f"📅 *Date changed — {show_name}*\n*{task_text}* deadline moved to *{selected_date}* by {user_name}",
+                    )
+
+                if user_id:
+                    _refresh_home_tab(user_id, show_name, sheets, slack)
+            except ValueError as e:
+                logger.error(f"Malformed home_change_date action_id: {e}")
+
+    elif action_id.startswith("home_refresh:"):
+        show_name = _parse_action_id_single(action_id, "home_refresh:")
+        user_id = payload.get("user", {}).get("id", "")
+        if user_id:
+            _refresh_home_tab(user_id, show_name, sheets, slack)
+
+    elif action_id.startswith("home_view_outstanding:"):
+        show_name = _parse_action_id_single(action_id, "home_view_outstanding:")
+        user_id = payload.get("user", {}).get("id", "")
+        if user_id:
+            _refresh_home_tab(user_id, show_name, sheets, slack, view_mode="upcoming")
+
+    elif action_id.startswith("home_view_completed:"):
+        show_name = _parse_action_id_single(action_id, "home_view_completed:")
+        user_id = payload.get("user", {}).get("id", "")
+        if user_id:
+            _refresh_home_tab(user_id, show_name, sheets, slack, view_mode="completed")
+
+    elif action_id.startswith("home_view_overdue:"):
+        show_name = _parse_action_id_single(action_id, "home_view_overdue:")
+        user_id = payload.get("user", {}).get("id", "")
+        if user_id:
+            _refresh_home_tab(user_id, show_name, sheets, slack, view_mode="overdue")
+
+    elif action_id.startswith("home_view_upcoming:"):
+        show_name = _parse_action_id_single(action_id, "home_view_upcoming:")
+        user_id = payload.get("user", {}).get("id", "")
+        if user_id:
+            _refresh_home_tab(user_id, show_name, sheets, slack, view_mode="upcoming")
 
     else:
         logger.warning(f"Unknown action_id: {action_id}")
@@ -247,3 +372,184 @@ def _handle_change_readthrough_date(
             "📅 Please use the date picker in the channel to change the readthrough date.",
             ephemeral=True,
         )
+
+
+# ─── Events API Handlers ─────────────────────────────────────────────────────
+
+
+def handle_event(event_body: dict, sheets: SheetRepository, slack: SlackClient) -> None:
+    """
+    Routes a Slack Events API callback to the appropriate handler.
+    Called from the /slack/events endpoint after 200 response.
+    """
+    event = event_body.get("event", {})
+    event_type = event.get("type", "")
+
+    if event_type == "member_joined_channel":
+        _handle_member_joined(event, slack)
+    elif event_type == "app_mention":
+        _handle_app_mention(event, sheets, slack)
+    elif event_type == "app_home_opened":
+        _handle_app_home_opened(event, sheets, slack)
+    else:
+        logger.debug(f"Unhandled event type: {event_type}")
+
+
+def _handle_member_joined(event: dict, slack: SlackClient) -> None:
+    """
+    Handle the member_joined_channel event.
+    Only sends a welcome message if the joining user is the bot itself.
+    """
+    joining_user = event.get("user", "")
+    channel = event.get("channel", "")
+
+    bot_user_id = slack.get_bot_user_id()
+    if not bot_user_id or joining_user != bot_user_id:
+        return  # Not the bot joining — ignore
+
+    logger.info(f"Bot joined channel {channel} — sending welcome message")
+    msg = build_welcome_message()
+    slack.send_message(channel, attachments=msg["attachments"])
+
+
+def _handle_app_mention(event: dict, sheets: SheetRepository, slack: SlackClient) -> None:
+    """
+    Handle @bot mentions. Parses the mention text for FAQ keywords
+    and responds with the matching canned response in a thread.
+    """
+    text = event.get("text", "")
+    channel = event.get("channel", "")
+    thread_ts = event.get("thread_ts") or event.get("ts", "")
+
+    # Strip the <@BOT_ID> mention prefix to get the user's query
+    query = re.sub(r"<@\w+>", "", text).strip().lower()
+
+    # Match the first keyword found
+    topic = _match_faq_topic(query)
+
+    if topic == "help":
+        msg = build_help_menu()
+    elif topic == "about":
+        msg = build_faq_about()
+    elif topic == "mark_done":
+        msg = build_faq_mark_done()
+    elif topic == "handbook":
+        msg = build_faq_handbook()
+    elif topic == "change_date":
+        msg = build_faq_change_date()
+    elif topic == "deadlines":
+        msg = _build_deadlines_response(channel, sheets, slack)
+    else:
+        # No keyword matched
+        display_query = query if query else "that"
+        msg = build_faq_unknown(display_query)
+
+    slack.send_message(channel, attachments=msg["attachments"], thread_ts=thread_ts)
+
+
+def _match_faq_topic(query: str) -> Optional[str]:
+    """
+    Match user query text against FAQ keywords.
+    Returns the topic identifier or None if no match.
+    """
+    if not query:
+        return "help"  # Bare mention with no text → show help
+
+    words = query.split()
+    for word in words:
+        if word in FAQ_KEYWORDS:
+            return FAQ_KEYWORDS[word]
+    return None
+
+
+def _build_contacts_response(channel: str, sheets: SheetRepository) -> dict:
+    """Build contacts FAQ response, looking up show data if possible."""
+    try:
+        show = sheets.get_show_by_channel(channel)
+    except Exception:
+        logger.error("Error looking up show by channel", exc_info=True)
+        show = None
+
+    if show:
+        return build_faq_contacts(show["show_name"], show["show_email"], show["resources_url"])
+    return build_faq_contacts_no_show()
+
+
+def _resolve_channel_name(channel_id: str, slack: SlackClient) -> str:
+    """Resolve a Slack channel ID to its name for sheet matching."""
+    name = slack.get_channel_name(channel_id)
+    return name if name else channel_id
+
+
+def _build_deadlines_response(channel: str, sheets: SheetRepository, slack: SlackClient) -> dict:
+    """Build deadlines FAQ response, looking up upcoming tasks if possible."""
+    try:
+        channel_name = _resolve_channel_name(channel, slack)
+        show = sheets.get_show_by_channel(channel_name)
+    except Exception:
+        logger.error("Error looking up show by channel", exc_info=True)
+        show = None
+
+    if not show:
+        return build_faq_deadlines_no_show()
+
+    try:
+        tasks = sheets.get_upcoming_tasks(show["show_name"], limit=5)
+    except Exception:
+        logger.error("Error fetching upcoming tasks", exc_info=True)
+        tasks = []
+
+    return build_faq_deadlines(show["show_name"], tasks)
+
+
+# ─── App Home Tab ─────────────────────────────────────────────────────────────
+
+
+def _handle_app_home_opened(event: dict, sheets: SheetRepository, slack: SlackClient) -> None:
+    """
+    Handle the app_home_opened event.
+    Publishes the Home tab view with task dashboard for the user.
+    """
+    user_id = event.get("user", "")
+    tab = event.get("tab", "")
+
+    if tab != "home" or not user_id:
+        return
+
+    # Check if the user previously selected a show (stored in private_metadata)
+    view = event.get("view")
+    previous_show = None
+    previous_mode = "upcoming"
+    if view and isinstance(view, dict):
+        metadata = view.get("private_metadata", "")
+        if "|" in metadata:
+            previous_show, previous_mode = metadata.split("|", 1)
+        elif metadata:
+            previous_show = metadata
+
+    if previous_show:
+        _refresh_home_tab(user_id, previous_show, sheets, slack, view_mode=previous_mode)
+    else:
+        # First visit or no show selected — show the selector
+        try:
+            shows = sheets.get_all_active_shows()
+        except Exception:
+            logger.error("Error fetching shows for Home tab", exc_info=True)
+            shows = []
+
+        home_view = build_home_tab_select_show(shows)
+        slack.publish_home_tab(user_id, home_view)
+
+
+def _refresh_home_tab(user_id: str, show_name: str, sheets: SheetRepository, slack: SlackClient, view_mode: str = "upcoming") -> None:
+    """Re-fetch task data and re-publish the Home tab for a user."""
+    try:
+        all_shows = sheets.get_all_active_shows()
+        task_groups = sheets.get_all_tasks(show_name)
+    except Exception:
+        logger.error("Error refreshing Home tab data", exc_info=True)
+        all_shows = []
+        task_groups = {"overdue": [], "due_soon": [], "upcoming": [], "completed": []}
+
+    home_view = build_home_tab(show_name, task_groups, all_shows, view_mode=view_mode)
+    slack.publish_home_tab(user_id, home_view)

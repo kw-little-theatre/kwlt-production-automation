@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     # Handbook
     handbook_url: str = ""
 
+    # Slack App identity (for deep links to App Home tab)
+    slack_team_id: str = ""
+    slack_app_id: str = ""
+
     # RAG (Phase 4)
     openai_api_key: str = ""
 

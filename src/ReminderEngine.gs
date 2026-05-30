@@ -351,15 +351,23 @@ function _executeAction(action, context, config) {
     const blocks = [
       { type: 'section', text: { type: 'mrkdwn', text: escText } },
     ];
-    // Mark Done button always rendered — it uses Slack Interactivity (action_id), not WEB_APP_URL
+    // Mark Done button and Reschedule date picker — uses Slack Interactivity (action_id)
     blocks.push({
       type: 'actions',
-      elements: [{
-        type: 'button',
-        text: { type: 'plain_text', text: '✅ Mark Done', emoji: true },
-        style: 'primary',
-        action_id: 'mark_done:' + encodeURIComponent(context.showName) + ':' + encodeURIComponent(context.task),
-      }],
+      elements: [
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: '✅ Mark Done', emoji: true },
+          style: 'primary',
+          action_id: 'mark_done:' + encodeURIComponent(context.showName) + ':' + encodeURIComponent(context.task),
+        },
+        {
+          type: 'datepicker',
+          action_id: 'change_task_date:' + encodeURIComponent(context.showName) + ':' + encodeURIComponent(context.task),
+          placeholder: { type: 'plain_text', text: 'Reschedule' },
+          ...(context.deadline ? { initial_date: context.deadline } : {}),
+        },
+      ],
     });
 
     const escResult = sendSlack(config, '', config.showSupportChannel, {

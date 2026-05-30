@@ -23,6 +23,35 @@ class SlackClient:
 
     def __init__(self, bot_token: str):
         self.client = WebClient(token=bot_token)
+        self._bot_user_id: Optional[str] = None
+
+    def get_bot_user_id(self) -> Optional[str]:
+        """
+        Returns the bot's own Slack user ID (e.g., 'U1234ABCD').
+        Cached after the first call. Uses auth.test which works with the bot token.
+        """
+        if self._bot_user_id is not None:
+            return self._bot_user_id
+        try:
+            response = self.client.auth_test()
+            self._bot_user_id = response.get("user_id")
+            return self._bot_user_id
+        except SlackApiError as e:
+            logger.error(f"Failed to get bot user ID: {e}")
+            return None
+
+    def get_channel_name(self, channel_id: str) -> Optional[str]:
+        """
+        Resolves a channel ID to its name (e.g., 'C0ABC1234' → 'automation-test').
+        Returns the name without '#' prefix, or None on failure.
+        """
+        try:
+            response = self.client.conversations_info(channel=channel_id)
+            channel_info = response.get("channel", {})
+            return channel_info.get("name")
+        except SlackApiError as e:
+            logger.error(f"Failed to get channel name for {channel_id}: {e}")
+            return None
 
     def send_message(
         self,
@@ -94,3 +123,22 @@ class SlackClient:
             )
         except Exception as e:
             logger.error(f"Failed to send response_url message: {e}")
+
+    def publish_home_tab(self, user_id: str, view: dict) -> dict:
+        """
+        Publish (create or update) the App Home tab view for a user.
+        The view must have type: "home" and a top-level blocks array.
+
+        Returns: { "ok": bool, "error": str | None }
+        """
+        try:
+            self.client.views_publish(user_id=user_id, view=view)
+            logger.info(f"Published Home tab for user {user_id}")
+            return {"ok": True}
+        except SlackApiError as e:
+            error_msg = e.response.get("error", str(e))
+            logger.error(f"Failed to publish Home tab: {error_msg}")
+            return {"ok": False, "error": error_msg}
+        except Exception as e:
+            logger.error(f"Exception publishing Home tab: {e}")
+            return {"ok": False, "error": str(e)}
