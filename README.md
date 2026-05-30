@@ -186,8 +186,10 @@ clasp push
    - **Interactivity & Shortcuts** → toggle On → set Request URL to your Web App URL
      _(required for Mark Done buttons, Undo, and readthrough date picker)_
    - **Event Subscriptions** → toggle On → set Request URL to your Python service URL + `/slack/events`
-     → Subscribe to bot events: `member_joined_channel`, `app_mention`
-     _(required for welcome messages and @bot help/FAQ)_
+     → Subscribe to bot events: `member_joined_channel`, `app_mention`, `app_home_opened`
+     _(required for welcome messages, @bot help/FAQ, and App Home tab)_
+   - **App Home** → toggle on *Home Tab*
+     _(required for the task dashboard in the bot's sidebar)_
    - Invite the bot to each show's Slack channel: `/invite @YourAppName`
 
 4. **Configure secrets** via 🎭 KWLT Automation → 🔐 Manage Secrets:

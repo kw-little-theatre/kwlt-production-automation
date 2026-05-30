@@ -123,3 +123,22 @@ class SlackClient:
             )
         except Exception as e:
             logger.error(f"Failed to send response_url message: {e}")
+
+    def publish_home_tab(self, user_id: str, view: dict) -> dict:
+        """
+        Publish (create or update) the App Home tab view for a user.
+        The view must have type: "home" and a top-level blocks array.
+
+        Returns: { "ok": bool, "error": str | None }
+        """
+        try:
+            self.client.views_publish(user_id=user_id, view=view)
+            logger.info(f"Published Home tab for user {user_id}")
+            return {"ok": True}
+        except SlackApiError as e:
+            error_msg = e.response.get("error", str(e))
+            logger.error(f"Failed to publish Home tab: {error_msg}")
+            return {"ok": False, "error": error_msg}
+        except Exception as e:
+            logger.error(f"Exception publishing Home tab: {e}")
+            return {"ok": False, "error": str(e)}

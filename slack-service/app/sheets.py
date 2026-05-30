@@ -235,6 +235,32 @@ class SheetRepository:
 
     # ─── Show Lookup ───────────────────────────────────────────────────
 
+    def get_all_active_shows(self) -> list[dict]:
+        """
+        Return all shows from the Show Setup sheet.
+        Returns a list of dicts with: show_name, slack_channel.
+        """
+        try:
+            sheet = self.spreadsheet.worksheet(SHEET_SHOW_SETUP)
+        except gspread.WorksheetNotFound:
+            return []
+
+        data = sheet.get_all_values()
+        if len(data) < 2:
+            return []
+
+        shows = []
+        for row in data[1:]:
+            while len(row) < 5:
+                row.append("")
+            name = row[SETUP_COL.SHOW_NAME].strip()
+            if name:
+                shows.append({
+                    "show_name": name,
+                    "slack_channel": row[SETUP_COL.SLACK_CHANNEL].strip(),
+                })
+        return shows
+
     def get_show_by_channel(self, channel_name: str) -> Optional[dict]:
         """
         Find the active show whose Slack channel matches the given channel name.
@@ -331,3 +357,130 @@ class SheetRepository:
     # ─── Active Shows (Phase 3) ──────────────────────────────────────
     # get_active_shows() will be added when the daily reminder cycle
     # is ported from Apps Script. Not needed for Phase 2 interactions.
+
+    # ─── Full Task List (Home Tab) ────────────────────────────────────
+
+    def get_all_tasks(self, show_name: str) -> dict[str, list[dict]]:
+        """
+        Return ALL tasks for a show, grouped by urgency status.
+        Returns a dict with keys: 'overdue', 'due_soon', 'upcoming', 'completed'.
+        Each value is a list of dicts: task, responsible, deadline, status.
+        """
+        from datetime import date
+        sheet = self._get_show_sheet(show_name)
+        if not sheet:
+            return {"overdue": [], "due_soon": [], "upcoming": [], "completed": []}
+
+        data = sheet.get_all_values()
+        if len(data) < 2:
+            return {"overdue": [], "due_soon": [], "upcoming": [], "completed": []}
+
+        today = date.today()
+        groups: dict[str, list[dict]] = {
+            "overdue": [],
+            "due_soon": [],
+            "upcoming": [],
+            "completed": [],
+        }
+
+        for raw_row in data[1:]:
+            row = self._pad_row(raw_row)
+            task_text = row[COL.TASK].strip()
+            status = row[COL.STATUS].strip()
+            deadline_str = row[COL.COMPUTED_DATE].strip()
+            responsible = row[COL.RESPONSIBLE].strip()
+
+            if not task_text:
+                continue
+
+            # Parse deadline
+            deadline_date = None
+            if deadline_str:
+                try:
+                    deadline_date = datetime.strptime(deadline_str, "%Y-%m-%d").date()
+                except ValueError:
+                    try:
+                        deadline_date = datetime.strptime(deadline_str, "%m/%d/%Y").date()
+                    except ValueError:
+                        pass
+
+            task_dict = {
+                "task": task_text,
+                "responsible": responsible,
+                "deadline": deadline_str,
+                "status": status,
+            }
+
+            # Categorize
+            if status in (STATUS.DONE, STATUS.SKIPPED):
+                groups["completed"].append(task_dict)
+            elif deadline_date is None:
+                groups["upcoming"].append(task_dict)
+            elif deadline_date < today:
+                groups["overdue"].append(task_dict)
+            elif (deadline_date - today).days <= 7:
+                groups["due_soon"].append(task_dict)
+            else:
+                groups["upcoming"].append(task_dict)
+
+        return groups
+
+    def update_task_date(self, show_name: str, task_text: str, new_date: str) -> MarkTaskResult:
+        """
+        Updates the computed deadline date for a task.
+        If the task was overdue and the new date is in the future, resets status to Pending.
+        Appends an audit note.
+        """
+        from datetime import date
+
+        sheet = self._get_show_sheet(show_name)
+        if not sheet:
+            return MarkTaskResult(
+                success=False,
+                message=f'Show tab "{SHOW_TAB_PREFIX}{show_name}" not found.',
+            )
+
+        data = sheet.get_all_values()
+
+        for row_idx, raw_row in enumerate(data[1:], start=2):
+            row = self._pad_row(raw_row)
+            current_task = str(row[COL.TASK])
+
+            if current_task == task_text or task_text in current_task or current_task in task_text:
+                now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                old_date = row[COL.COMPUTED_DATE].strip()
+                existing_notes = row[COL.NOTES]
+                new_notes = (
+                    (existing_notes + "\n" if existing_notes else "")
+                    + f"Date changed from {old_date} to {new_date} via Slack at {now_str}"
+                )
+
+                updates = [
+                    {"range": gspread.utils.rowcol_to_a1(row_idx, COL.COMPUTED_DATE + 1), "values": [[new_date]]},
+                    {"range": gspread.utils.rowcol_to_a1(row_idx, COL.NOTES + 1), "values": [[new_notes]]},
+                ]
+
+                # If the task was overdue and new date is future, reset to Pending
+                current_status = row[COL.STATUS].strip()
+                try:
+                    new_deadline = datetime.strptime(new_date, "%Y-%m-%d").date()
+                    if new_deadline >= date.today() and current_status in (
+                        STATUS.OVERDUE, STATUS.ADVANCE_SENT, STATUS.URGENT_SENT
+                    ):
+                        updates.append({
+                            "range": gspread.utils.rowcol_to_a1(row_idx, COL.STATUS + 1),
+                            "values": [[STATUS.PENDING]],
+                        })
+                except ValueError:
+                    pass  # If the date format is unexpected, just update the date
+
+                sheet.batch_update(updates)
+
+                self.log_send(show_name, current_task, row[COL.RESPONSIBLE], "slack", "date-change", True)
+
+                return MarkTaskResult(success=True, message=f"Deadline updated to {new_date}.")
+
+        return MarkTaskResult(
+            success=False,
+            message=f'Task "{task_text}" not found in the {show_name} timeline.',
+        )

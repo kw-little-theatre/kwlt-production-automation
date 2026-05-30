@@ -29,6 +29,8 @@ from app.messages import (
     build_faq_mark_done,
     build_faq_unknown,
     build_help_menu,
+    build_home_tab,
+    build_home_tab_select_show,
     build_mark_done_confirmation,
     build_readthrough_confirmation,
     build_readthrough_date_prompt,
@@ -84,6 +86,41 @@ def handle_block_action(
 
     elif action_id.startswith("change_readthrough_date:"):
         _handle_change_readthrough_date(action_id, channel, response_url, sheets, slack)
+
+    elif action_id.startswith("home_select_show"):
+        selected = payload.get("actions", [{}])[0].get("selected_option", {})
+        show_name = selected.get("value", "")
+        user_id = payload.get("user", {}).get("id", "")
+        if show_name and user_id:
+            _refresh_home_tab(user_id, show_name, sheets, slack)
+
+    elif action_id.startswith("home_mark_done:"):
+        try:
+            show_name, task_text = _parse_action_id(action_id, "home_mark_done:")
+            sheets.mark_task_done(show_name, task_text)
+            user_id = payload.get("user", {}).get("id", "")
+            if user_id:
+                _refresh_home_tab(user_id, show_name, sheets, slack)
+        except ValueError as e:
+            logger.error(f"Malformed home_mark_done action_id: {e}")
+
+    elif action_id.startswith("home_change_date:"):
+        selected_date = payload.get("actions", [{}])[0].get("selected_date")
+        if selected_date:
+            try:
+                show_name, task_text = _parse_action_id(action_id, "home_change_date:")
+                sheets.update_task_date(show_name, task_text, selected_date)
+                user_id = payload.get("user", {}).get("id", "")
+                if user_id:
+                    _refresh_home_tab(user_id, show_name, sheets, slack)
+            except ValueError as e:
+                logger.error(f"Malformed home_change_date action_id: {e}")
+
+    elif action_id.startswith("home_refresh:"):
+        show_name = _parse_action_id_single(action_id, "home_refresh:")
+        user_id = payload.get("user", {}).get("id", "")
+        if user_id:
+            _refresh_home_tab(user_id, show_name, sheets, slack)
 
     else:
         logger.warning(f"Unknown action_id: {action_id}")
@@ -279,6 +316,8 @@ def handle_event(event_body: dict, sheets: SheetRepository, slack: SlackClient) 
         _handle_member_joined(event, slack)
     elif event_type == "app_mention":
         _handle_app_mention(event, sheets, slack)
+    elif event_type == "app_home_opened":
+        _handle_app_home_opened(event, sheets, slack)
     else:
         logger.debug(f"Unhandled event type: {event_type}")
 
@@ -388,3 +427,51 @@ def _build_deadlines_response(channel: str, sheets: SheetRepository, slack: Slac
         tasks = []
 
     return build_faq_deadlines(show["show_name"], tasks)
+
+
+# ─── App Home Tab ─────────────────────────────────────────────────────────────
+
+
+def _handle_app_home_opened(event: dict, sheets: SheetRepository, slack: SlackClient) -> None:
+    """
+    Handle the app_home_opened event.
+    Publishes the Home tab view with task dashboard for the user.
+    """
+    user_id = event.get("user", "")
+    tab = event.get("tab", "")
+
+    if tab != "home" or not user_id:
+        return
+
+    # Check if the user previously selected a show (stored in private_metadata)
+    view = event.get("view")
+    previous_show = None
+    if view and isinstance(view, dict):
+        previous_show = view.get("private_metadata", "")
+
+    if previous_show:
+        _refresh_home_tab(user_id, previous_show, sheets, slack)
+    else:
+        # First visit or no show selected — show the selector
+        try:
+            shows = sheets.get_all_active_shows()
+        except Exception:
+            logger.error("Error fetching shows for Home tab", exc_info=True)
+            shows = []
+
+        home_view = build_home_tab_select_show(shows)
+        slack.publish_home_tab(user_id, home_view)
+
+
+def _refresh_home_tab(user_id: str, show_name: str, sheets: SheetRepository, slack: SlackClient) -> None:
+    """Re-fetch task data and re-publish the Home tab for a user."""
+    try:
+        all_shows = sheets.get_all_active_shows()
+        task_groups = sheets.get_all_tasks(show_name)
+    except Exception:
+        logger.error("Error refreshing Home tab data", exc_info=True)
+        all_shows = []
+        task_groups = {"overdue": [], "due_soon": [], "upcoming": [], "completed": []}
+
+    home_view = build_home_tab(show_name, task_groups, all_shows)
+    slack.publish_home_tab(user_id, home_view)

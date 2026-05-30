@@ -686,3 +686,206 @@ def build_faq_unknown(user_text: str) -> dict:
             }
         ],
     }
+
+
+# ─── App Home Tab Views ──────────────────────────────────────────────────────
+# Home tab views use top-level blocks (not attachments).
+# They return {"type": "home", "blocks": [...]} for views.publish().
+
+
+def build_home_tab_select_show(shows: list[dict]) -> dict:
+    """
+    Builds the initial Home tab view with a show selector dropdown.
+    Shown when the user hasn't selected a show yet.
+    """
+    blocks = [
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": "🎭 KWLT Show Support Bot", "emoji": True},
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "Welcome! Select your show below to see tasks and deadlines.",
+            },
+        },
+        {"type": "divider"},
+    ]
+
+    if shows:
+        options = [
+            {
+                "text": {"type": "plain_text", "text": s["show_name"], "emoji": True},
+                "value": s["show_name"],
+            }
+            for s in shows
+        ]
+        blocks.append({
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "static_select",
+                    "placeholder": {"type": "plain_text", "text": "Choose a show…"},
+                    "action_id": "home_select_show",
+                    "options": options,
+                }
+            ],
+        })
+    else:
+        blocks.append({
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "_No shows found in the spreadsheet._",
+            },
+        })
+
+    return {"type": "home", "blocks": blocks}
+
+
+def build_home_tab(show_name: str, task_groups: dict, all_shows: list[dict]) -> dict:
+    """
+    Builds the full Home tab view for a selected show.
+    task_groups has keys: overdue, due_soon, upcoming, completed.
+    Each value is a list of dicts: task, responsible, deadline, status.
+    """
+    # Header + show selector
+    show_options = [
+        {
+            "text": {"type": "plain_text", "text": s["show_name"], "emoji": True},
+            "value": s["show_name"],
+        }
+        for s in all_shows
+    ]
+
+    blocks = [
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": f"🎭 {show_name}", "emoji": True},
+        },
+        {
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "static_select",
+                    "placeholder": {"type": "plain_text", "text": "Switch show…"},
+                    "action_id": "home_select_show",
+                    "options": show_options,
+                    "initial_option": next(
+                        (o for o in show_options if o["value"] == show_name),
+                        show_options[0] if show_options else None,
+                    ),
+                },
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "🔄 Refresh", "emoji": True},
+                    "action_id": f"home_refresh:{quote(show_name)}",
+                },
+            ],
+        },
+        {"type": "divider"},
+    ]
+
+    # ─── Task sections by urgency ────────────────────────────────────
+    section_configs = [
+        ("overdue", "🚨 Overdue"),
+        ("due_soon", "⚠️ Due Soon (next 7 days)"),
+        ("upcoming", "📋 Upcoming"),
+        ("completed", "✅ Completed"),
+    ]
+
+    total_tasks = sum(len(task_groups.get(key, [])) for key in ["overdue", "due_soon", "upcoming", "completed"])
+
+    if total_tasks == 0:
+        blocks.append({
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": "_No tasks found for this show._"},
+        })
+    else:
+        for group_key, group_label in section_configs:
+            tasks = task_groups.get(group_key, [])
+            if not tasks:
+                continue
+
+            # Section header
+            blocks.append({
+                "type": "header",
+                "text": {"type": "plain_text", "text": f"{group_label} ({len(tasks)})", "emoji": True},
+            })
+
+            # Task rows
+            is_completed = group_key == "completed"
+            for t in tasks:
+                blocks.extend(_build_home_task_row(show_name, t, is_completed))
+
+            blocks.append({"type": "divider"})
+
+    # Keep blocks under 100 limit — trim completed if needed
+    if len(blocks) > 95:
+        # Find where completed section starts and truncate
+        blocks = blocks[:92]
+        blocks.append({
+            "type": "context",
+            "elements": [{"type": "mrkdwn", "text": "_Some completed tasks hidden. Check the spreadsheet for the full list._"}],
+        })
+
+    return {
+        "type": "home",
+        "private_metadata": show_name,
+        "blocks": blocks,
+    }
+
+
+def _build_home_task_row(show_name: str, task: dict, is_completed: bool) -> list[dict]:
+    """
+    Builds the Block Kit blocks for a single task row in the Home tab.
+    Returns a list of 1-2 blocks (section + optional actions).
+    """
+    task_text = task["task"]
+    responsible = task["responsible"]
+    deadline = task["deadline"] or "No date"
+    status = task["status"]
+
+    if is_completed:
+        icon = "✅" if status == "Done" else "⏭️"
+        section_text = f"{icon} ~{task_text}~\n_{responsible}  ·  {deadline}_"
+        return [{
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": section_text},
+        }]
+
+    # Pending task — show with Done button and date picker as accessories
+    section_text = f"*{task_text}*\n{responsible}  ·  📅 {deadline}"
+
+    blocks = [
+        {
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": section_text},
+            "accessory": {
+                "type": "datepicker",
+                "action_id": f"home_change_date:{quote(show_name)}:{quote(task_text)}",
+                "placeholder": {"type": "plain_text", "text": "Change date"},
+                **({"initial_date": deadline} if _is_valid_date(deadline) else {}),
+            },
+        },
+        {
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "✅ Mark Done", "emoji": True},
+                    "style": "primary",
+                    "action_id": f"home_mark_done:{quote(show_name)}:{quote(task_text)}",
+                },
+            ],
+        },
+    ]
+
+    return blocks
+
+
+def _is_valid_date(date_str: str) -> bool:
+    """Check if a string is a valid YYYY-MM-DD date for Slack's datepicker."""
+    import re
+    return bool(re.match(r"^\d{4}-\d{2}-\d{2}$", date_str))
