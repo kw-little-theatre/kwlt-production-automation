@@ -402,7 +402,7 @@ class SheetRepository:
                     try:
                         deadline_date = datetime.strptime(deadline_str, "%m/%d/%Y").date()
                     except ValueError:
-                        pass
+                        logger.debug("Unparseable deadline '%s' for task '%s' — skipping date grouping", deadline_str, task_text)
 
             task_dict = {
                 "task": task_text,

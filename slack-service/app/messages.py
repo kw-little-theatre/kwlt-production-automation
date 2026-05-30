@@ -12,6 +12,10 @@ from __future__ import annotations
 
 from urllib.parse import quote
 
+# Hardcoded URL — this is a known, trusted KWLT Google Drive folder.
+# CodeQL flags substring checks on URLs; this is a static constant, not user input.
+KWLT_HANDBOOK_URL = "https://drive.google.com/drive/folders/1_O9M8-m0Y3iGB0527LKbhTb3tlpP1KGW?usp=drive_link"  # noqa: E501
+
 
 def build_reminder_blocks(context: dict, action: str) -> dict:
     """
@@ -519,7 +523,6 @@ def build_faq_contacts_no_show() -> dict:
 
 def build_faq_handbook() -> dict:
     """FAQ: Where can I find the production handbook?"""
-    handbook_url = "https://drive.google.com/drive/folders/1_O9M8-m0Y3iGB0527LKbhTb3tlpP1KGW?usp=drive_link"
     blocks = [
         {
             "type": "section",
@@ -527,7 +530,7 @@ def build_faq_handbook() -> dict:
                 "type": "mrkdwn",
                 "text": (
                     "📖 *Production Handbook & Resources*\n\n"
-                    f"📖 <{handbook_url}|Click here to open the Production Handbook>\n\n"
+                    f"📖 <{KWLT_HANDBOOK_URL}|Click here to open the Production Handbook>\n\n"
                     "The handbook covers role responsibilities, timeline expectations, "
                     "and processes for every stage of production. It's your go-to reference!"
                 ),
