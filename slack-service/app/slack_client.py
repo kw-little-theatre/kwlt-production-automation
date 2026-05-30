@@ -23,6 +23,22 @@ class SlackClient:
 
     def __init__(self, bot_token: str):
         self.client = WebClient(token=bot_token)
+        self._bot_user_id: Optional[str] = None
+
+    def get_bot_user_id(self) -> Optional[str]:
+        """
+        Returns the bot's own Slack user ID (e.g., 'U1234ABCD').
+        Cached after the first call. Uses auth.test which works with the bot token.
+        """
+        if self._bot_user_id is not None:
+            return self._bot_user_id
+        try:
+            response = self.client.auth_test()
+            self._bot_user_id = response.get("user_id")
+            return self._bot_user_id
+        except SlackApiError as e:
+            logger.error(f"Failed to get bot user ID: {e}")
+            return None
 
     def send_message(
         self,

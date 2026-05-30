@@ -19,7 +19,9 @@ from google.oauth2.service_account import Credentials
 
 from app.constants import (
     COL,
+    SETUP_COL,
     SHEET_SEND_LOG,
+    SHEET_SHOW_SETUP,
     SHOW_TAB_PREFIX,
     SHOW_TIMELINE_COLS,
     STATUS,
@@ -230,6 +232,101 @@ class SheetRepository:
             )
         except Exception as e:
             logger.warning(f"Failed to write to Send Log: {e}")
+
+    # ─── Show Lookup ───────────────────────────────────────────────────
+
+    def get_show_by_channel(self, channel_id: str) -> Optional[dict]:
+        """
+        Find the active show whose Slack channel matches the given channel ID or name.
+        Returns a dict with show_name, show_email, resources_url, or None.
+        """
+        try:
+            sheet = self.spreadsheet.worksheet(SHEET_SHOW_SETUP)
+        except gspread.WorksheetNotFound:
+            return None
+
+        data = sheet.get_all_values()
+        if len(data) < 2:
+            return None
+
+        for row in data[1:]:
+            # Pad to avoid IndexError on short rows
+            while len(row) < 6:
+                row.append("")
+
+            row_channel = row[SETUP_COL.SLACK_CHANNEL].strip()
+
+            # Match by channel ID (C...) or channel name (with or without #)
+            if row_channel and (
+                row_channel == channel_id
+                or row_channel.lstrip("#") == channel_id
+                or channel_id == row_channel.lstrip("#")
+            ):
+                return {
+                    "show_name": row[SETUP_COL.SHOW_NAME].strip(),
+                    "show_email": row[SETUP_COL.SHOW_EMAIL].strip(),
+                    "resources_url": row[SETUP_COL.RESOURCES_URL].strip(),
+                }
+
+        return None
+
+    def get_upcoming_tasks(self, show_name: str, limit: int = 5) -> list[dict]:
+        """
+        Return the next N pending/upcoming tasks with deadlines for a show.
+        Returns a list of dicts with: task, responsible, deadline, status.
+        """
+        sheet = self._get_show_sheet(show_name)
+        if not sheet:
+            return []
+
+        data = sheet.get_all_values()
+        if len(data) < 2:
+            return []
+
+        from datetime import date
+
+        today = date.today()
+        upcoming = []
+
+        for raw_row in data[1:]:
+            row = self._pad_row(raw_row)
+            status = row[COL.STATUS].strip()
+            deadline_str = row[COL.COMPUTED_DATE].strip()
+            task_text = row[COL.TASK].strip()
+
+            if not task_text or not deadline_str:
+                continue
+
+            # Parse deadline — accept yyyy-MM-dd or other formats
+            try:
+                deadline_date = datetime.strptime(deadline_str, "%Y-%m-%d").date()
+            except ValueError:
+                try:
+                    deadline_date = datetime.strptime(deadline_str, "%m/%d/%Y").date()
+                except ValueError:
+                    continue
+
+            # Include pending tasks from today onward, and recently overdue (within 7 days)
+            if status in (STATUS.DONE, STATUS.SKIPPED):
+                continue
+            if deadline_date < today and (today - deadline_date).days > 7:
+                continue
+
+            upcoming.append({
+                "task": task_text,
+                "responsible": row[COL.RESPONSIBLE].strip(),
+                "deadline": deadline_str,
+                "status": status,
+                "deadline_date": deadline_date,
+            })
+
+        # Sort by deadline, take the first N
+        upcoming.sort(key=lambda t: t["deadline_date"])
+        # Remove the sort key before returning
+        for t in upcoming:
+            del t["deadline_date"]
+
+        return upcoming[:limit]
 
     # ─── Active Shows (Phase 3) ──────────────────────────────────────
     # get_active_shows() will be added when the daily reminder cycle

@@ -185,6 +185,9 @@ clasp push
    - Copy the **Bot User OAuth Token** (starts with `xoxb-`)
    - **Interactivity & Shortcuts** → toggle On → set Request URL to your Web App URL
      _(required for Mark Done buttons, Undo, and readthrough date picker)_
+   - **Event Subscriptions** → toggle On → set Request URL to your Python service URL + `/slack/events`
+     → Subscribe to bot events: `member_joined_channel`, `app_mention`
+     _(required for welcome messages and @bot help/FAQ)_
    - Invite the bot to each show's Slack channel: `/invite @YourAppName`
 
 4. **Configure secrets** via 🎭 KWLT Automation → 🔐 Manage Secrets:

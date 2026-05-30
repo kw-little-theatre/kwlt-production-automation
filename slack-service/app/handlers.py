@@ -2,8 +2,9 @@
 KWLT Production Automation — Slack Interaction Handlers
 
 Business logic for handling Slack interactive component callbacks
-(buttons, date pickers). These are called by the FastAPI endpoints
-and coordinate between the SheetRepository and SlackClient.
+(buttons, date pickers) and Events API events (bot joins, @mentions).
+These are called by the FastAPI endpoints and coordinate between
+the SheetRepository and SlackClient.
 
 Port of the doPost() handler logic from WebApp.gs.
 """
@@ -11,13 +12,27 @@ Port of the doPost() handler logic from WebApp.gs.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Optional
 from urllib.parse import unquote
 
+from app.config import settings
+from app.constants import FAQ_KEYWORDS
 from app.messages import (
+    build_faq_about,
+    build_faq_change_date,
+    build_faq_contacts,
+    build_faq_contacts_no_show,
+    build_faq_deadlines,
+    build_faq_deadlines_no_show,
+    build_faq_handbook,
+    build_faq_mark_done,
+    build_faq_unknown,
+    build_help_menu,
     build_mark_done_confirmation,
     build_readthrough_confirmation,
     build_readthrough_date_prompt,
+    build_welcome_message,
 )
 from app.sheets import SheetRepository
 from app.slack_client import SlackClient
@@ -247,3 +262,124 @@ def _handle_change_readthrough_date(
             "📅 Please use the date picker in the channel to change the readthrough date.",
             ephemeral=True,
         )
+
+
+# ─── Events API Handlers ─────────────────────────────────────────────────────
+
+
+def handle_event(event_body: dict, sheets: SheetRepository, slack: SlackClient) -> None:
+    """
+    Routes a Slack Events API callback to the appropriate handler.
+    Called from the /slack/events endpoint after 200 response.
+    """
+    event = event_body.get("event", {})
+    event_type = event.get("type", "")
+
+    if event_type == "member_joined_channel":
+        _handle_member_joined(event, slack)
+    elif event_type == "app_mention":
+        _handle_app_mention(event, sheets, slack)
+    else:
+        logger.debug(f"Unhandled event type: {event_type}")
+
+
+def _handle_member_joined(event: dict, slack: SlackClient) -> None:
+    """
+    Handle the member_joined_channel event.
+    Only sends a welcome message if the joining user is the bot itself.
+    """
+    joining_user = event.get("user", "")
+    channel = event.get("channel", "")
+
+    bot_user_id = slack.get_bot_user_id()
+    if not bot_user_id or joining_user != bot_user_id:
+        return  # Not the bot joining — ignore
+
+    logger.info(f"Bot joined channel {channel} — sending welcome message")
+    msg = build_welcome_message()
+    slack.send_message(channel, attachments=msg["attachments"])
+
+
+def _handle_app_mention(event: dict, sheets: SheetRepository, slack: SlackClient) -> None:
+    """
+    Handle @bot mentions. Parses the mention text for FAQ keywords
+    and responds with the matching canned response in a thread.
+    """
+    text = event.get("text", "")
+    channel = event.get("channel", "")
+    thread_ts = event.get("thread_ts") or event.get("ts", "")
+
+    # Strip the <@BOT_ID> mention prefix to get the user's query
+    query = re.sub(r"<@\w+>", "", text).strip().lower()
+
+    # Match the first keyword found
+    topic = _match_faq_topic(query)
+
+    if topic == "help":
+        msg = build_help_menu()
+    elif topic == "about":
+        msg = build_faq_about()
+    elif topic == "mark_done":
+        msg = build_faq_mark_done()
+    elif topic == "handbook":
+        msg = build_faq_handbook(settings.handbook_url)
+    elif topic == "change_date":
+        msg = build_faq_change_date()
+    elif topic == "contacts":
+        msg = _build_contacts_response(channel, sheets)
+    elif topic == "deadlines":
+        msg = _build_deadlines_response(channel, sheets)
+    else:
+        # No keyword matched
+        display_query = query if query else "that"
+        msg = build_faq_unknown(display_query)
+
+    slack.send_message(channel, attachments=msg["attachments"], thread_ts=thread_ts)
+
+
+def _match_faq_topic(query: str) -> Optional[str]:
+    """
+    Match user query text against FAQ keywords.
+    Returns the topic identifier or None if no match.
+    """
+    if not query:
+        return "help"  # Bare mention with no text → show help
+
+    words = query.split()
+    for word in words:
+        if word in FAQ_KEYWORDS:
+            return FAQ_KEYWORDS[word]
+    return None
+
+
+def _build_contacts_response(channel: str, sheets: SheetRepository) -> dict:
+    """Build contacts FAQ response, looking up show data if possible."""
+    try:
+        show = sheets.get_show_by_channel(channel)
+    except Exception:
+        logger.error("Error looking up show by channel", exc_info=True)
+        show = None
+
+    if show:
+        return build_faq_contacts(show["show_name"], show["show_email"], show["resources_url"])
+    return build_faq_contacts_no_show()
+
+
+def _build_deadlines_response(channel: str, sheets: SheetRepository) -> dict:
+    """Build deadlines FAQ response, looking up upcoming tasks if possible."""
+    try:
+        show = sheets.get_show_by_channel(channel)
+    except Exception:
+        logger.error("Error looking up show by channel", exc_info=True)
+        show = None
+
+    if not show:
+        return build_faq_deadlines_no_show()
+
+    try:
+        tasks = sheets.get_upcoming_tasks(show["show_name"], limit=5)
+    except Exception:
+        logger.error("Error fetching upcoming tasks", exc_info=True)
+        tasks = []
+
+    return build_faq_deadlines(show["show_name"], tasks)

@@ -88,3 +88,47 @@ class COL:
 
 
 SHOW_TIMELINE_COLS = 10
+
+# ─── Show Setup Columns (0-based) ─────────────────────────────────────────────
+
+class SETUP_COL:
+    SHOW_NAME = 0       # A
+    PRODUCTION_TYPE = 1 # B
+    ACTIVE = 2          # C
+    SLACK_CHANNEL = 3   # D
+    SHOW_EMAIL = 4      # E
+    RESOURCES_URL = 5   # F
+
+
+# ─── Message Colors ───────────────────────────────────────────────────────────
+
+WELCOME_COLOR = "#2563eb"   # Blue — same as advance reminders
+HELP_COLOR = "#6d28d9"      # Deep purple — informational
+FAQ_COLOR = "#0891b2"       # Cyan — FAQ answers
+
+# ─── FAQ Keyword Mapping ──────────────────────────────────────────────────────
+
+# Maps user keywords to FAQ topic identifiers.
+# First match wins, so more specific words should come first.
+FAQ_KEYWORDS: dict[str, str] = {
+    "deadlines": "deadlines",
+    "upcoming": "deadlines",
+    "tasks": "deadlines",
+    "schedule": "deadlines",
+    "contacts": "contacts",
+    "team": "contacts",
+    "who": "contacts",
+    "handbook": "handbook",
+    "resources": "handbook",
+    "guide": "handbook",
+    "done": "mark_done",
+    "mark": "mark_done",
+    "button": "mark_done",
+    "complete": "mark_done",
+    "date": "change_date",
+    "change": "change_date",
+    "reschedule": "change_date",
+    "about": "about",
+    "what": "about",
+    "help": "help",
+}

@@ -16,7 +16,7 @@ import logging
 from fastapi import BackgroundTasks, FastAPI, Request, Response
 
 from app.config import settings
-from app.handlers import handle_block_action
+from app.handlers import handle_block_action, handle_event
 from app.messages import build_readthrough_date_prompt, build_reminder_blocks
 from app.models import DigestItem, TaskContext
 from app.reminder_logic import generate_token
@@ -334,5 +334,49 @@ def reminders_readthrough_prompt(show_name: str, channel: str):
         return {"ok": False, "error": "Internal error sending readthrough prompt"}
 
 
-# ── Slack Events API (Phase 4 — RAG Q&A) ────────────────────────────────────
-# TODO: POST /slack/events — handles app_mention events
+# ── Slack Events API ─────────────────────────────────────────────────────────
+
+
+@app.post("/slack/events")
+async def slack_events(request: Request, background_tasks: BackgroundTasks):
+    """
+    Handles Slack Events API callbacks.
+
+    Two request types:
+    1. URL verification challenge (one-time setup) — must respond synchronously
+    2. Event callbacks (member_joined_channel, app_mention) — respond 200
+       immediately, process in background
+
+    See: https://api.slack.com/events/url_verification
+    """
+    body = await request.body()
+
+    # Verify Slack signature
+    if settings.slack_signing_secret:
+        timestamp = request.headers.get("X-Slack-Request-Timestamp", "")
+        signature = request.headers.get("X-Slack-Signature", "")
+        if not verify_slack_signature(settings.slack_signing_secret, timestamp, body, signature):
+            logger.warning("Slack Events: signature verification failed")
+            return Response(status_code=401, content="Invalid signature")
+
+    event_body = json.loads(body)
+
+    # Handle URL verification challenge (Slack sends this when you first set the URL)
+    if event_body.get("type") == "url_verification":
+        return {"challenge": event_body.get("challenge", "")}
+
+    # Handle event callbacks in background
+    if event_body.get("type") == "event_callback":
+        background_tasks.add_task(_process_event, event_body)
+
+    return Response(status_code=200, content="")
+
+
+def _process_event(event_body: dict) -> None:
+    """Background task that processes a Slack event after the 200 response."""
+    try:
+        sheets = _get_sheets()
+        slack = _get_slack()
+        handle_event(event_body, sheets, slack)
+    except Exception as e:
+        logger.error(f"Error handling event: {e}", exc_info=True)
