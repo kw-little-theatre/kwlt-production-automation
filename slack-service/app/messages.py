@@ -831,8 +831,13 @@ def build_home_tab(show_name: str, task_groups: dict, all_shows: list[dict], vie
                 },
                 {
                     "type": "button",
-                    "text": {"type": "plain_text", "text": "🔄 Refresh", "emoji": True},
+                    "text": {"type": "plain_text", "text": "🔄 Refresh Tasks", "emoji": True},
                     "action_id": f"home_refresh:{quote(show_name)}",
+                },
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "📋 Refresh Shows", "emoji": True},
+                    "action_id": "home_refresh_shows",
                 },
             ],
         },
