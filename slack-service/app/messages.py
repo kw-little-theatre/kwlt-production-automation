@@ -285,16 +285,22 @@ def build_welcome_message() -> dict:
             "text": {
                 "type": "mrkdwn",
                 "text": (
-                    "👋 *Hey there! I'm the KWLT Production Bot.*\n\n"
+                    "👋 *Hey there! I'm the Show Support Bot.*\n\n"
                     "I'll be sending task reminders to this channel as your "
-                    "production deadlines approach. Here's what I do:\n\n"
-                    "• 📋 *Send reminders* — advance (7 days out), urgent (1 day), "
-                    "and overdue alerts for your production tasks\n"
-                    "• ✅ *Mark Done buttons* — click to mark tasks complete "
-                    "right from Slack (with undo!)\n"
-                    "• ⏭️ *Skip optional tasks* — some tasks are optional and can be skipped\n"
-                    "• 📅 *Readthrough date picker* — I'll ask for your "
-                    "readthrough date after auditions wrap"
+                    "production deadlines approach."
+                ),
+            },
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": (
+                    "📋 *Send reminders* — advance (7 days out), urgent (1 day), "
+                    "and overdue alerts\n"
+                    "✅ *Mark Done buttons* — update task status right from Slack (with undo!)\n"
+                    "⏭️ *Skip optional tasks* — some tasks are optional and can be skipped\n"
+                    "📅 *Readthrough date picker* — I'll ask for the readthrough date after auditions"
                 ),
             },
         },
@@ -306,7 +312,7 @@ def build_welcome_message() -> dict:
             "elements": [
                 {
                     "type": "mrkdwn",
-                    "text": "💡 *Tip:* Mention me with `@KWLT Bot help` anytime to see what I can answer.",
+                    "text": "💡 *Tip:* Mention me anytime with `help` to see what I can answer.",
                 }
             ],
         },
@@ -316,7 +322,7 @@ def build_welcome_message() -> dict:
         "attachments": [
             {
                 "color": "#2563eb",
-                "fallback": "👋 KWLT Production Bot has joined the channel! Mention me with @KWLT Bot help for info.",
+                "fallback": "👋 Show Support Bot has joined the channel! Mention me with help for info.",
                 "blocks": blocks,
             }
         ],
@@ -336,12 +342,11 @@ def build_help_menu() -> dict:
                 "text": (
                     "📖 *KWLT Production Bot — Help*\n\n"
                     "Mention me with any of these topics and I'll give you the details:\n\n"
-                    "• `@bot about` — What does this bot do?\n"
-                    "• `@bot done` — How do I mark a task done?\n"
-                    "• `@bot contacts` — Who are my show contacts?\n"
-                    "• `@bot handbook` — Where's the production handbook?\n"
-                    "• `@bot deadlines` — What are the upcoming deadlines?\n"
-                    "• `@bot date` — How do I change a date?"
+                    "• `@Show Support Bot about` — What does this bot do?\n"
+                    "• `@Show Support Bot done` — How do I mark a task done?\n"
+                    "• `@Show Support Bot handbook` — Where's the production handbook?\n"
+                    "• `@Show Support Bot deadlines` — What are the upcoming deadlines?\n"
+                    "• `@Show Support Bot date` — How do I change a date?"
                 ),
             },
         },
@@ -350,7 +355,7 @@ def build_help_menu() -> dict:
             "elements": [
                 {
                     "type": "mrkdwn",
-                    "text": "_I can only answer these canned topics for now. Full Q&A coming soon!_",
+                    "text": "_These are the topics I can help with right now._",
                 }
             ],
         },
@@ -360,7 +365,7 @@ def build_help_menu() -> dict:
         "attachments": [
             {
                 "color": "#6d28d9",
-                "fallback": "📖 KWLT Bot Help — mention me with: about, done, contacts, handbook, deadlines, date",
+                "fallback": "📖 Show Support Bot Help — mention me with: about, done, handbook, deadlines, date",
                 "blocks": blocks,
             }
         ],
@@ -445,7 +450,7 @@ def build_faq_contacts(show_name: str, show_email: str, resources_url: str) -> d
 
     detail_lines.append(
         "\nFor other contacts, check the Show Setup tab in the spreadsheet "
-        "or reach out in the Show Support channel."
+        "or reach out in *#comm-show-support*."
     )
 
     blocks = [
@@ -480,7 +485,7 @@ def build_faq_contacts_no_show() -> dict:
                     "👥 *Show Contacts*\n\n"
                     "I couldn't find a show linked to this channel. "
                     "Check the *🎭 Show Setup* sheet to make sure this channel "
-                    "is listed for your show, or ask in the Show Support channel."
+                    "is listed for your show, or ask in *#comm-show-support*."
                 ),
             },
         },
@@ -497,13 +502,9 @@ def build_faq_contacts_no_show() -> dict:
     }
 
 
-def build_faq_handbook(handbook_url: str) -> dict:
+def build_faq_handbook() -> dict:
     """FAQ: Where can I find the production handbook?"""
-    if handbook_url:
-        link_text = f"📖 <{handbook_url}|Click here to open the Production Handbook>"
-    else:
-        link_text = "_(No handbook URL is configured — ask Show Support for the link.)_"
-
+    handbook_url = "https://drive.google.com/drive/folders/1_O9M8-m0Y3iGB0527LKbhTb3tlpP1KGW?usp=drive_link"
     blocks = [
         {
             "type": "section",
@@ -511,7 +512,7 @@ def build_faq_handbook(handbook_url: str) -> dict:
                 "type": "mrkdwn",
                 "text": (
                     "📖 *Production Handbook & Resources*\n\n"
-                    f"{link_text}\n\n"
+                    f"📖 <{handbook_url}|Click here to open the Production Handbook>\n\n"
                     "The handbook covers role responsibilities, timeline expectations, "
                     "and processes for every stage of production. It's your go-to reference!"
                 ),
@@ -535,36 +536,57 @@ def build_faq_deadlines(show_name: str, tasks: list[dict]) -> dict:
     FAQ: What are the key deadlines? Uses live data from the sheet.
     tasks is a list of dicts with keys: task, responsible, deadline, status.
     """
-    if not tasks:
-        task_lines = "_No upcoming tasks found — all caught up! 🎉_"
-    else:
-        lines = []
-        for t in tasks:
-            status_icon = "✅" if t["status"] == "Done" else "⏭️" if t["status"] == "Skipped" else "📋"
-            lines.append(f"  {status_icon} *{t['task']}* — {t['responsible']} — {t['deadline']}")
-        task_lines = "\n".join(lines)
-
     blocks = [
         {
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": (
-                    f"📅 *Upcoming Deadlines — {show_name}*\n\n"
-                    f"{task_lines}"
-                ),
+                "text": f"📅 *Upcoming Deadlines — {show_name}*",
             },
         },
-        {
-            "type": "context",
-            "elements": [
-                {
-                    "type": "mrkdwn",
-                    "text": "_Showing the next pending tasks. Check the show's timeline tab for the full list._",
-                }
-            ],
-        },
     ]
+
+    if not tasks:
+        blocks.append({
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "_No upcoming tasks found — all caught up! 🎉_",
+            },
+        })
+    else:
+        for t in tasks:
+            is_done = t["status"] in ("Done", "Skipped")
+            status_icon = "✅" if t["status"] == "Done" else "⏭️" if t["status"] == "Skipped" else "📋"
+            task_text = f"{status_icon} *{t['task']}*\n{t['responsible']}  ·  {t['deadline']}"
+
+            section = {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": task_text,
+                },
+            }
+
+            # Add Mark Done button for pending tasks
+            if not is_done:
+                section["accessory"] = {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "✅ Done", "emoji": True},
+                    "action_id": f"mark_done:{quote(show_name)}:{quote(t['task'])}",
+                }
+
+            blocks.append(section)
+
+    blocks.append({
+        "type": "context",
+        "elements": [
+            {
+                "type": "mrkdwn",
+                "text": "_Showing the next pending tasks. Check the show's timeline tab for the full list._",
+            }
+        ],
+    })
 
     return {
         "attachments": [
@@ -588,7 +610,7 @@ def build_faq_deadlines_no_show() -> dict:
                     "📅 *Upcoming Deadlines*\n\n"
                     "I couldn't find a show linked to this channel. "
                     "Check the *🎭 Show Setup* sheet to make sure this channel "
-                    "is listed for your show."
+                    "is listed for your show, or ask in *#comm-show-support*."
                 ),
             },
         },
@@ -649,7 +671,7 @@ def build_faq_unknown(user_text: str) -> dict:
                 "text": (
                     f"🤔 I'm not sure what you mean by \"{user_text}\".\n\n"
                     "Try mentioning me with one of these:\n"
-                    "`help` · `about` · `done` · `contacts` · `handbook` · `deadlines` · `date`"
+                    "`help` · `about` · `done` · `handbook` · `deadlines` · `date`"
                 ),
             },
         },

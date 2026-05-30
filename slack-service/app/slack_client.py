@@ -40,6 +40,19 @@ class SlackClient:
             logger.error(f"Failed to get bot user ID: {e}")
             return None
 
+    def get_channel_name(self, channel_id: str) -> Optional[str]:
+        """
+        Resolves a channel ID to its name (e.g., 'C0ABC1234' → 'automation-test').
+        Returns the name without '#' prefix, or None on failure.
+        """
+        try:
+            response = self.client.conversations_info(channel=channel_id)
+            channel_info = response.get("channel", {})
+            return channel_info.get("name")
+        except SlackApiError as e:
+            logger.error(f"Failed to get channel name for {channel_id}: {e}")
+            return None
+
     def send_message(
         self,
         channel: str,

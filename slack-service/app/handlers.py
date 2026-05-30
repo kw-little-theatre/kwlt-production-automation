@@ -322,13 +322,11 @@ def _handle_app_mention(event: dict, sheets: SheetRepository, slack: SlackClient
     elif topic == "mark_done":
         msg = build_faq_mark_done()
     elif topic == "handbook":
-        msg = build_faq_handbook(settings.handbook_url)
+        msg = build_faq_handbook()
     elif topic == "change_date":
         msg = build_faq_change_date()
-    elif topic == "contacts":
-        msg = _build_contacts_response(channel, sheets)
     elif topic == "deadlines":
-        msg = _build_deadlines_response(channel, sheets)
+        msg = _build_deadlines_response(channel, sheets, slack)
     else:
         # No keyword matched
         display_query = query if query else "that"
@@ -365,10 +363,17 @@ def _build_contacts_response(channel: str, sheets: SheetRepository) -> dict:
     return build_faq_contacts_no_show()
 
 
-def _build_deadlines_response(channel: str, sheets: SheetRepository) -> dict:
+def _resolve_channel_name(channel_id: str, slack: SlackClient) -> str:
+    """Resolve a Slack channel ID to its name for sheet matching."""
+    name = slack.get_channel_name(channel_id)
+    return name if name else channel_id
+
+
+def _build_deadlines_response(channel: str, sheets: SheetRepository, slack: SlackClient) -> dict:
     """Build deadlines FAQ response, looking up upcoming tasks if possible."""
     try:
-        show = sheets.get_show_by_channel(channel)
+        channel_name = _resolve_channel_name(channel, slack)
+        show = sheets.get_show_by_channel(channel_name)
     except Exception:
         logger.error("Error looking up show by channel", exc_info=True)
         show = None

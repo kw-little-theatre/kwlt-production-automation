@@ -235,9 +235,11 @@ class SheetRepository:
 
     # ─── Show Lookup ───────────────────────────────────────────────────
 
-    def get_show_by_channel(self, channel_id: str) -> Optional[dict]:
+    def get_show_by_channel(self, channel_name: str) -> Optional[dict]:
         """
-        Find the active show whose Slack channel matches the given channel ID or name.
+        Find the active show whose Slack channel matches the given channel name.
+        The channel_name should be without '#' prefix (e.g., 'automation-test').
+        The sheet may store values with or without '#'.
         Returns a dict with show_name, show_email, resources_url, or None.
         """
         try:
@@ -249,19 +251,17 @@ class SheetRepository:
         if len(data) < 2:
             return None
 
+        # Normalize: strip '#' for comparison
+        lookup = channel_name.lstrip("#").lower()
+
         for row in data[1:]:
             # Pad to avoid IndexError on short rows
-            while len(row) < 6:
+            while len(row) < 5:
                 row.append("")
 
-            row_channel = row[SETUP_COL.SLACK_CHANNEL].strip()
+            row_channel = row[SETUP_COL.SLACK_CHANNEL].strip().lstrip("#").lower()
 
-            # Match by channel ID (C...) or channel name (with or without #)
-            if row_channel and (
-                row_channel == channel_id
-                or row_channel.lstrip("#") == channel_id
-                or channel_id == row_channel.lstrip("#")
-            ):
+            if row_channel and row_channel == lookup:
                 return {
                     "show_name": row[SETUP_COL.SHOW_NAME].strip(),
                     "show_email": row[SETUP_COL.SHOW_EMAIL].strip(),

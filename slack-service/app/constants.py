@@ -94,10 +94,9 @@ SHOW_TIMELINE_COLS = 10
 class SETUP_COL:
     SHOW_NAME = 0       # A
     PRODUCTION_TYPE = 1 # B
-    ACTIVE = 2          # C
-    SLACK_CHANNEL = 3   # D
-    SHOW_EMAIL = 4      # E
-    RESOURCES_URL = 5   # F
+    SLACK_CHANNEL = 2   # C
+    SHOW_EMAIL = 3      # D
+    RESOURCES_URL = 4   # E
 
 
 # ─── Message Colors ───────────────────────────────────────────────────────────
@@ -115,9 +114,6 @@ FAQ_KEYWORDS: dict[str, str] = {
     "upcoming": "deadlines",
     "tasks": "deadlines",
     "schedule": "deadlines",
-    "contacts": "contacts",
-    "team": "contacts",
-    "who": "contacts",
     "handbook": "handbook",
     "resources": "handbook",
     "guide": "handbook",

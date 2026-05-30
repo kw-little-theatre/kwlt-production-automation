@@ -223,9 +223,7 @@ class TestAppMentionHandler:
         attachments = slack.send_message.call_args[1]["attachments"]
         assert "mark a task done" in attachments[0]["blocks"][0]["text"]["text"].lower()
 
-    @patch("app.handlers.settings")
-    def test_handbook_keyword(self, mock_settings):
-        mock_settings.handbook_url = "https://example.com/handbook"
+    def test_handbook_keyword(self):
         sheets = MagicMock()
         slack = MagicMock()
 
@@ -245,36 +243,6 @@ class TestAppMentionHandler:
         attachments = slack.send_message.call_args[1]["attachments"]
         assert "change a date" in attachments[0]["blocks"][0]["text"]["text"].lower()
 
-    def test_contacts_with_show(self):
-        """Contacts should pull show data when a show is linked to the channel."""
-        sheets = MagicMock()
-        sheets.get_show_by_channel.return_value = {
-            "show_name": "Hamlet",
-            "show_email": "hamlet@kwlt.org",
-            "resources_url": "https://drive.google.com/hamlet",
-        }
-        slack = MagicMock()
-
-        handle_event(self._make_event_body("<@U_BOT> contacts"), sheets, slack)
-
-        sheets.get_show_by_channel.assert_called_once_with("C12345")
-        slack.send_message.assert_called_once()
-        text = slack.send_message.call_args[1]["attachments"][0]["blocks"][0]["text"]["text"]
-        assert "Hamlet" in text
-        assert "hamlet@kwlt.org" in text
-
-    def test_contacts_no_show(self):
-        """Contacts should show fallback when no show is linked."""
-        sheets = MagicMock()
-        sheets.get_show_by_channel.return_value = None
-        slack = MagicMock()
-
-        handle_event(self._make_event_body("<@U_BOT> contacts"), sheets, slack)
-
-        slack.send_message.assert_called_once()
-        text = slack.send_message.call_args[1]["attachments"][0]["blocks"][0]["text"]["text"]
-        assert "couldn't find a show" in text.lower()
-
     def test_deadlines_with_show(self):
         """Deadlines should pull live task data from the sheet."""
         sheets = MagicMock()
@@ -288,14 +256,17 @@ class TestAppMentionHandler:
             {"task": "Book days", "responsible": "Director", "deadline": "2026-06-05", "status": "Pending"},
         ]
         slack = MagicMock()
+        slack.get_channel_name.return_value = "show-hamlet"
 
         handle_event(self._make_event_body("<@U_BOT> deadlines"), sheets, slack)
 
         sheets.get_upcoming_tasks.assert_called_once_with("Hamlet", limit=5)
         slack.send_message.assert_called_once()
-        text = slack.send_message.call_args[1]["attachments"][0]["blocks"][0]["text"]["text"]
-        assert "Hamlet" in text
-        assert "Submit poster" in text
+        blocks = slack.send_message.call_args[1]["attachments"][0]["blocks"]
+        # Header + 2 task blocks + context = 4 blocks
+        block_texts = [b["text"]["text"] for b in blocks if b["type"] == "section"]
+        assert any("Hamlet" in t for t in block_texts)
+        assert any("Submit poster" in t for t in block_texts)
 
     def test_deadlines_no_show(self):
         sheets = MagicMock()
@@ -335,7 +306,7 @@ class TestAppMentionHandler:
         slack = MagicMock()
 
         # Should not raise
-        handle_event(self._make_event_body("<@U_BOT> contacts"), sheets, slack)
+        handle_event(self._make_event_body("<@U_BOT> deadlines"), sheets, slack)
 
         slack.send_message.assert_called_once()
         # Should show the no-show fallback
@@ -360,9 +331,6 @@ class TestFaqKeywordMatching:
         ("mark", "mark_done"),
         ("button", "mark_done"),
         ("complete", "mark_done"),
-        ("contacts", "contacts"),
-        ("team", "contacts"),
-        ("who", "contacts"),
         ("handbook", "handbook"),
         ("resources", "handbook"),
         ("guide", "handbook"),
@@ -410,8 +378,7 @@ class TestWelcomeMessage:
     def test_contains_introduction(self):
         msg = build_welcome_message()
         text = msg["attachments"][0]["blocks"][0]["text"]["text"]
-        assert "KWLT Production Bot" in text
-        assert "reminders" in text.lower()
+        assert "Show Support Bot" in text
 
     def test_has_help_tip(self):
         msg = build_welcome_message()
@@ -436,8 +403,8 @@ class TestHelpMenu:
     def test_lists_all_topics(self):
         msg = build_help_menu()
         text = msg["attachments"][0]["blocks"][0]["text"]["text"]
-        for topic in ["about", "done", "contacts", "handbook", "deadlines", "date"]:
-            assert topic in text
+        for topic in ["about", "done", "handbook", "deadlines", "date"]:
+            assert topic in text.lower()
 
     def test_has_purple_color(self):
         msg = build_help_menu()
@@ -475,14 +442,9 @@ class TestFaqBuilders:
         assert "couldn't find" in text.lower()
 
     def test_handbook_with_url(self):
-        msg = build_faq_handbook("https://example.com/handbook")
+        msg = build_faq_handbook()
         text = msg["attachments"][0]["blocks"][0]["text"]["text"]
-        assert "example.com/handbook" in text
-
-    def test_handbook_without_url(self):
-        msg = build_faq_handbook("")
-        text = msg["attachments"][0]["blocks"][0]["text"]["text"]
-        assert "No handbook URL is configured" in text
+        assert "drive.google.com" in text
 
     def test_deadlines_with_tasks(self):
         tasks = [
@@ -490,15 +452,23 @@ class TestFaqBuilders:
             {"task": "Book days", "responsible": "Director", "deadline": "2026-06-05", "status": "Done"},
         ]
         msg = build_faq_deadlines("Hamlet", tasks)
-        text = msg["attachments"][0]["blocks"][0]["text"]["text"]
-        assert "Hamlet" in text
-        assert "Submit poster" in text
-        assert "Book days" in text
+        blocks = msg["attachments"][0]["blocks"]
+        section_blocks = [b for b in blocks if b["type"] == "section"]
+        # Header + 2 tasks = 3 section blocks
+        assert len(section_blocks) == 3
+        assert "Hamlet" in section_blocks[0]["text"]["text"]
+        assert "Submit poster" in section_blocks[1]["text"]["text"]
+        # Pending task should have a Mark Done button
+        assert "accessory" in section_blocks[1]
+        assert section_blocks[1]["accessory"]["action_id"].startswith("mark_done:")
+        # Done task should NOT have a button
+        assert "accessory" not in section_blocks[2]
 
     def test_deadlines_empty(self):
         msg = build_faq_deadlines("Hamlet", [])
-        text = msg["attachments"][0]["blocks"][0]["text"]["text"]
-        assert "all caught up" in text.lower()
+        blocks = msg["attachments"][0]["blocks"]
+        section_texts = [b["text"]["text"] for b in blocks if b["type"] == "section"]
+        assert any("all caught up" in t.lower() for t in section_texts)
 
     def test_deadlines_no_show(self):
         msg = build_faq_deadlines_no_show()
@@ -523,7 +493,7 @@ class TestFaqBuilders:
             build_faq_mark_done(),
             build_faq_contacts("Show", "email", "url"),
             build_faq_contacts_no_show(),
-            build_faq_handbook("url"),
+            build_faq_handbook(),
             build_faq_deadlines("Show", []),
             build_faq_deadlines_no_show(),
             build_faq_change_date(),
