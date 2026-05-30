@@ -309,6 +309,9 @@ def build_welcome_message() -> dict:
     Builds the welcome message posted when the bot joins a channel.
     Introduces the bot and explains what it does.
     """
+    home_link = _home_tab_deep_link()
+    home_line = f"\n🏠 *Task dashboard* — <{home_link}|open the App Home tab> to see all your dates, mark tasks done, and change deadlines" if home_link else "\n🏠 *Task dashboard* — click on me in the sidebar to see all your dates, mark tasks done, and change deadlines"
+
     blocks = [
         {
             "type": "section",
@@ -331,6 +334,7 @@ def build_welcome_message() -> dict:
                     "✅ *Mark Done buttons* — update task status right from Slack (with undo!)\n"
                     "⏭️ *Skip optional tasks* — some tasks are optional and can be skipped\n"
                     "📅 *Readthrough date picker* — I'll ask for the readthrough date after auditions"
+                    f"{home_line}"
                 ),
             },
         },
@@ -364,6 +368,9 @@ def build_help_menu() -> dict:
     Builds the full help/FAQ menu listing all available topics.
     Shown in response to '@bot help'.
     """
+    home_link = _home_tab_deep_link()
+    home_tip = f"\n\n🏠 <{home_link}|Open the task dashboard> to see all dates, mark tasks done, and change deadlines." if home_link else "\n\n🏠 Click on me in the sidebar to open the *task dashboard* — see all dates, mark tasks done, and change deadlines."
+
     blocks = [
         {
             "type": "section",
@@ -377,6 +384,7 @@ def build_help_menu() -> dict:
                     "• `@Show Support Bot handbook` — Where's the production handbook?\n"
                     "• `@Show Support Bot deadlines` — What are the upcoming deadlines?\n"
                     "• `@Show Support Bot date` — How do I change a date?"
+                    f"{home_tip}"
                 ),
             },
         },
