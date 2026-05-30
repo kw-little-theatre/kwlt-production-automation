@@ -766,7 +766,12 @@ def build_home_tab_select_show(shows: list[dict]) -> dict:
                     "placeholder": {"type": "plain_text", "text": "Choose a show…"},
                     "action_id": "home_select_show",
                     "options": options,
-                }
+                },
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "\ud83d\udd04 Refresh Shows", "emoji": True},
+                    "action_id": "home_refresh_shows",
+                },
             ],
         })
     else:
@@ -776,6 +781,16 @@ def build_home_tab_select_show(shows: list[dict]) -> dict:
                 "type": "mrkdwn",
                 "text": "_No shows found in the spreadsheet._",
             },
+        })
+        blocks.append({
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "\ud83d\udd04 Refresh Shows", "emoji": True},
+                    "action_id": "home_refresh_shows",
+                },
+            ],
         })
 
     return {"type": "home", "blocks": blocks}

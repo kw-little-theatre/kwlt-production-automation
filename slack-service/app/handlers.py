@@ -49,8 +49,8 @@ _locks_lock = threading.Lock()
 
 # Global cache for Home tab data — keyed by show name (not per-user, since data is the same)
 _home_tab_cache: dict[str, dict] = {}
-_shows_cache: dict[str, object] = {}  # cached show list
-HOME_TAB_CACHE_TTL = 300  # 5 minutes
+_shows_cache: dict[str, object] = {}  # cached show list — no TTL, refreshed manually
+HOME_TAB_CACHE_TTL = 1800  # 30 minutes for task data
 
 
 def _get_user_lock(user_id: str) -> threading.Lock:
@@ -70,9 +70,9 @@ def _get_cached_data(user_id: str, show_name: str) -> Optional[dict]:
 
 
 def _get_cached_shows() -> Optional[list]:
-    """Get cached show list if still fresh."""
+    """Get cached show list. Cached permanently until manually refreshed."""
     cached = _shows_cache.get("shows")
-    if cached and time.time() - cached["ts"] < HOME_TAB_CACHE_TTL:
+    if cached:
         return cached["data"]
     return None
 
@@ -215,6 +215,20 @@ def handle_block_action(
         user_id = payload.get("user", {}).get("id", "")
         if user_id:
             _refresh_home_tab(user_id, show_name, sheets, slack, invalidate_cache=True)
+
+    elif action_id.startswith("home_refresh_shows"):
+        user_id = payload.get("user", {}).get("id", "")
+        if user_id:
+            # Clear show list cache and re-fetch
+            _shows_cache.clear()
+            try:
+                shows = sheets.get_all_active_shows()
+                _shows_cache["shows"] = {"ts": time.time(), "data": shows}
+            except Exception:
+                logger.error("Error refreshing show list", exc_info=True)
+                shows = []
+            home_view = build_home_tab_select_show(shows)
+            slack.publish_home_tab(user_id, home_view)
 
     elif action_id.startswith("home_view_outstanding:"):
         show_name = _parse_action_id_single(action_id, "home_view_outstanding:")
