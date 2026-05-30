@@ -80,6 +80,26 @@ async def health_check():
     return {"status": "ok"}
 
 
+@app.on_event("startup")
+def warm_cache():
+    """Pre-warm the Home tab cache on startup so the first user doesn't wait."""
+    try:
+        sheets = _get_sheets()
+        shows = sheets.get_all_active_shows()
+        logger.info(f"Startup: warming cache for {len(shows)} shows")
+
+        from app.handlers import _set_cached_data
+        for show in shows:
+            try:
+                task_groups = sheets.get_all_tasks(show["show_name"])
+                _set_cached_data("_startup", show["show_name"], shows, task_groups)
+                logger.info(f"Startup: cached {show['show_name']}")
+            except Exception:
+                logger.warning(f"Startup: failed to cache {show['show_name']}", exc_info=True)
+    except Exception:
+        logger.warning("Startup: cache warming failed", exc_info=True)
+
+
 # ─── Slack Interaction Handler ────────────────────────────────────────────────
 
 
