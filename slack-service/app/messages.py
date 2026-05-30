@@ -609,7 +609,7 @@ def build_faq_deadlines(show_name: str, tasks: list[dict]) -> dict:
             if not is_done:
                 section["accessory"] = {
                     "type": "button",
-                    "text": {"type": "plain_text", "text": "✅ Done", "emoji": True},
+                    "text": {"type": "plain_text", "text": "✅ Mark Done", "emoji": True},
                     "action_id": f"mark_done:{quote(show_name)}:{quote(t['task'])}",
                 }
 
@@ -831,12 +831,7 @@ def build_home_tab(show_name: str, task_groups: dict, all_shows: list[dict], vie
                 },
                 {
                     "type": "button",
-                    "text": {"type": "plain_text", "text": "🔄 Refresh Tasks", "emoji": True},
-                    "action_id": f"home_refresh:{quote(show_name)}",
-                },
-                {
-                    "type": "button",
-                    "text": {"type": "plain_text", "text": "📋 Refresh Shows", "emoji": True},
+                    "text": {"type": "plain_text", "text": " Refresh Shows", "emoji": True},
                     "action_id": "home_refresh_shows",
                 },
             ],
@@ -865,6 +860,12 @@ def build_home_tab(show_name: str, task_groups: dict, all_shows: list[dict], vie
         if view_mode == mode:
             btn["style"] = "primary"
         toggle_elements.append(btn)
+
+    toggle_elements.append({
+        "type": "button",
+        "text": {"type": "plain_text", "text": "🔄 Refresh Tasks", "emoji": True},
+        "action_id": f"home_refresh:{quote(show_name)}",
+    })
 
     blocks.append({
         "type": "actions",
@@ -982,7 +983,7 @@ def _build_home_task_row(show_name: str, task: dict, is_completed: bool) -> list
                 },
                 {
                     "type": "button",
-                    "text": {"type": "plain_text", "text": "✅ Done", "emoji": True},
+                    "text": {"type": "plain_text", "text": "✅ Mark Done", "emoji": True},
                     "action_id": f"home_mark_done:{quote(show_name)}:{quote(task_text)}",
                 },
             ],
