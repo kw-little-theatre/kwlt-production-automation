@@ -52,6 +52,76 @@ _home_tab_cache: dict[str, dict] = {}
 _shows_cache: dict[str, object] = {}  # cached show list — no TTL, refreshed manually
 HOME_TAB_CACHE_TTL = 1800  # 30 minutes for task data
 
+# ─── Date Change Batcher ──────────────────────────────────────────────────────
+# Collects date-change notifications per show and sends a single batched message
+# to the Show Support channel after a quiet period (no new changes for BATCH_DELAY
+# seconds). This avoids spam when someone updates many dates at once.
+
+BATCH_DELAY = 300  # seconds (5 min) to wait after the last change before sending
+
+
+class _DateChangeBatcher:
+    """Accumulates date-change events per show and flushes them as a single message."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        # {show_name: {"changes": [(task_text, selected_date, user_name), ...], "timer": Timer}}
+        self._pending: dict[str, dict] = {}
+
+    def add(
+        self,
+        show_name: str,
+        task_text: str,
+        selected_date: str,
+        user_name: str,
+        slack: SlackClient,
+    ) -> None:
+        """Record a date change. Resets the flush timer for this show."""
+        with self._lock:
+            bucket = self._pending.setdefault(show_name, {"changes": [], "timer": None})
+            bucket["changes"].append((task_text, selected_date, user_name))
+
+            # Cancel any existing timer and start a new one
+            if bucket["timer"] is not None:
+                bucket["timer"].cancel()
+            bucket["timer"] = threading.Timer(
+                BATCH_DELAY, self._flush, args=(show_name, slack)
+            )
+            bucket["timer"].daemon = True
+            bucket["timer"].start()
+
+    def _flush(self, show_name: str, slack: SlackClient) -> None:
+        """Send the batched notification and clear the bucket."""
+        with self._lock:
+            bucket = self._pending.pop(show_name, None)
+        if not bucket or not bucket["changes"]:
+            return
+
+        changes = bucket["changes"]
+        channel = settings.show_support_channel
+        if not channel:
+            return
+
+        if len(changes) == 1:
+            task_text, selected_date, user_name = changes[0]
+            text = (
+                f"📅 *Date changed — {show_name}*\n"
+                f"*{task_text}* deadline moved to *{selected_date}* by {user_name}"
+            )
+        else:
+            lines = [f"📅 *{len(changes)} dates changed — {show_name}*"]
+            for task_text, selected_date, user_name in changes:
+                lines.append(f"• *{task_text}* → *{selected_date}* (by {user_name})")
+            text = "\n".join(lines)
+
+        try:
+            slack.send_message(channel, text=text)
+        except Exception:
+            logger.error("Failed to send batched date-change notification", exc_info=True)
+
+
+_date_change_batcher = _DateChangeBatcher()
+
 
 def _get_user_lock(user_id: str) -> threading.Lock:
     """Get or create a lock for a specific user's Home tab operations."""
@@ -146,12 +216,8 @@ def handle_block_action(
                         f"📅 *{task_text}* deadline changed to *{selected_date}* by {user_name}",
                         ephemeral=False,
                     )
-                    # Notify show support
-                    if settings.show_support_channel:
-                        slack.send_message(
-                            settings.show_support_channel,
-                            text=f"📅 *Date changed — {show_name}*\n*{task_text}* deadline moved to *{selected_date}* by {user_name}",
-                        )
+                    # Batch notification to show support (sends after a quiet period)
+                    _date_change_batcher.add(show_name, task_text, selected_date, user_name, slack)
                 else:
                     slack.send_response_url(
                         response_url,
@@ -198,12 +264,9 @@ def handle_block_action(
                 user_name = f"<@{payload['user']['id']}>" if payload.get("user") else "Someone"
                 user_id = payload.get("user", {}).get("id", "")
 
-                # Notify show support channel about the date change
-                if result.success and settings.show_support_channel:
-                    slack.send_message(
-                        settings.show_support_channel,
-                        text=f"📅 *Date changed — {show_name}*\n*{task_text}* deadline moved to *{selected_date}* by {user_name}",
-                    )
+                # Batch notification to show support (sends after a quiet period)
+                if result.success:
+                    _date_change_batcher.add(show_name, task_text, selected_date, user_name, slack)
 
                 if user_id:
                     _refresh_home_tab(user_id, show_name, sheets, slack, invalidate_cache=True)

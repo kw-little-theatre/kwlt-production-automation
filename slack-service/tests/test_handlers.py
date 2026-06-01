@@ -5,10 +5,11 @@ These test the handler routing and business logic using mocked
 SheetRepository and SlackClient — no real Sheets API or Slack calls.
 """
 
-from unittest.mock import MagicMock
+import time
+from unittest.mock import MagicMock, patch
 from typing import Optional
 
-from app.handlers import handle_block_action
+from app.handlers import handle_block_action, _DateChangeBatcher
 from app.models import MarkTaskResult
 
 
@@ -239,3 +240,71 @@ class TestActionIdRouting:
         # Should not raise — the handler should catch the ValueError
         handle_block_action("mark_done:ShowNameOnly", payload, sheets, slack)
         sheets.mark_task_done.assert_not_called()
+
+
+class TestDateChangeBatcher:
+    """Tests for the debounced date-change notification batcher."""
+
+    def test_single_change_sends_after_delay(self):
+        """A single date change should send one notification after the delay."""
+        batcher = _DateChangeBatcher()
+        slack = MagicMock()
+
+        with patch("app.handlers.settings") as mock_settings:
+            mock_settings.show_support_channel = "C_SUPPORT"
+            with patch("app.handlers.BATCH_DELAY", 0.1):
+                batcher.add("Hamlet", "Submit poster", "2026-07-15", "<@U123>", slack)
+                time.sleep(0.3)
+
+        slack.send_message.assert_called_once()
+        call_text = slack.send_message.call_args[1]["text"]
+        assert "Hamlet" in call_text
+        assert "Submit poster" in call_text
+        assert "2026-07-15" in call_text
+
+    def test_multiple_changes_batched_into_one_message(self):
+        """Multiple rapid date changes for the same show should batch into one message."""
+        batcher = _DateChangeBatcher()
+        slack = MagicMock()
+
+        with patch("app.handlers.settings") as mock_settings:
+            mock_settings.show_support_channel = "C_SUPPORT"
+            with patch("app.handlers.BATCH_DELAY", 0.2):
+                batcher.add("Hamlet", "Submit poster", "2026-07-15", "<@U123>", slack)
+                batcher.add("Hamlet", "Book audition space", "2026-07-20", "<@U123>", slack)
+                batcher.add("Hamlet", "Confirm director", "2026-07-25", "<@U456>", slack)
+                time.sleep(0.5)
+
+        slack.send_message.assert_called_once()
+        call_text = slack.send_message.call_args[1]["text"]
+        assert "3 dates changed" in call_text
+        assert "Submit poster" in call_text
+        assert "Book audition space" in call_text
+        assert "Confirm director" in call_text
+
+    def test_different_shows_batch_separately(self):
+        """Date changes for different shows should produce separate notifications."""
+        batcher = _DateChangeBatcher()
+        slack = MagicMock()
+
+        with patch("app.handlers.settings") as mock_settings:
+            mock_settings.show_support_channel = "C_SUPPORT"
+            with patch("app.handlers.BATCH_DELAY", 0.1):
+                batcher.add("Hamlet", "Submit poster", "2026-07-15", "<@U123>", slack)
+                batcher.add("Macbeth", "Book venue", "2026-08-01", "<@U123>", slack)
+                time.sleep(0.3)
+
+        assert slack.send_message.call_count == 2
+
+    def test_no_channel_configured_skips_send(self):
+        """If show_support_channel is not set, no message should be sent."""
+        batcher = _DateChangeBatcher()
+        slack = MagicMock()
+
+        with patch("app.handlers.settings") as mock_settings:
+            mock_settings.show_support_channel = ""
+            with patch("app.handlers.BATCH_DELAY", 0.1):
+                batcher.add("Hamlet", "Submit poster", "2026-07-15", "<@U123>", slack)
+                time.sleep(0.3)
+
+        slack.send_message.assert_not_called()
