@@ -11,10 +11,13 @@ a seam for testing (can be mocked or pointed at a test spreadsheet).
 from __future__ import annotations
 
 import logging
+import os
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 import gspread
+from google.auth import default as google_default
 from google.oauth2.service_account import Credentials
 
 from app.constants import (
@@ -39,11 +42,32 @@ class SheetRepository:
 
     Mirrors the data access patterns in WebApp.gs and ReminderEngine.gs
     but uses the Google Sheets API via gspread instead of SpreadsheetApp.
+    
+    Authentication: Uses Google Application Default Credentials (ADC) when available,
+    falls back to a credentials file if provided and exists. This enables Cloud Run
+    to authenticate without storing secrets in git.
     """
 
     def __init__(self, credentials_file: str, spreadsheet_id: str):
         self.spreadsheet_id = spreadsheet_id
-        creds = Credentials.from_service_account_file(credentials_file, scopes=SCOPES)
+        
+        # Try Application Default Credentials first (works on Cloud Run)
+        creds = None
+        try:
+            creds, _ = google_default(scopes=SCOPES)
+            logger.info("Using Application Default Credentials (Cloud Run)")
+        except Exception:
+            # Fall back to credentials file if ADC not available
+            if credentials_file and Path(credentials_file).exists():
+                logger.info(f"Using service account credentials from {credentials_file}")
+                creds = Credentials.from_service_account_file(credentials_file, scopes=SCOPES)
+            else:
+                raise RuntimeError(
+                    f"No credentials available. Tried ADC and credentials file '{credentials_file}'. "
+                    "For Cloud Run: ensure the service account has Sheets API permissions. "
+                    "For local: provide credentials.json or set GOOGLE_APPLICATION_CREDENTIALS."
+                )
+        
         self.gc = gspread.authorize(creds)
         self.spreadsheet = self.gc.open_by_key(spreadsheet_id)
 
