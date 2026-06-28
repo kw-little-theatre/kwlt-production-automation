@@ -113,41 +113,45 @@ async def slack_interactions(request: Request, background_tasks: BackgroundTasks
     We must respond with 200 within 3 seconds — all heavy work
     (sheet writes, follow-up messages) runs in a background task.
     """
-    body = await request.body()
+    try:
+        body = await request.body()
 
-    # Verify Slack signature (security improvement over Apps Script)
-    if settings.slack_signing_secret:
-        timestamp = request.headers.get("X-Slack-Request-Timestamp", "")
-        signature = request.headers.get("X-Slack-Signature", "")
-        if not verify_slack_signature(settings.slack_signing_secret, timestamp, body, signature):
-            logger.warning("Slack signature verification failed")
-            return Response(status_code=401, content="Invalid signature")
+        # Verify Slack signature (security improvement over Apps Script)
+        if settings.slack_signing_secret:
+            timestamp = request.headers.get("X-Slack-Request-Timestamp", "")
+            signature = request.headers.get("X-Slack-Signature", "")
+            if not verify_slack_signature(settings.slack_signing_secret, timestamp, body, signature):
+                logger.warning("Slack signature verification failed")
+                return Response(status_code=401, content="Invalid signature")
 
-    # Parse the payload
-    form_data = await request.form()
-    payload_str = form_data.get("payload", "")
-    if not payload_str:
-        return Response(status_code=400, content="Missing payload")
+        # Parse the payload
+        form_data = await request.form()
+        payload_str = form_data.get("payload", "")
+        if not payload_str:
+            return Response(status_code=400, content="Missing payload")
 
-    payload = json.loads(payload_str)
-    payload_type = payload.get("type", "")
+        payload = json.loads(payload_str)
+        payload_type = payload.get("type", "")
 
-    if payload_type == "block_actions":
-        action = payload.get("actions", [{}])[0]
-        action_id = action.get("action_id", "")
-        # Return 200 immediately to meet Slack's 3-second deadline.
-        # Sheet writes and follow-up messages run in a background task.
-        background_tasks.add_task(_process_block_action, action_id, payload)
+        if payload_type == "block_actions":
+            action = payload.get("actions", [{}])[0]
+            action_id = action.get("action_id", "")
+            # Return 200 immediately to meet Slack's 3-second deadline.
+            # Sheet writes and follow-up messages run in a background task.
+            background_tasks.add_task(_process_block_action, action_id, payload)
 
-    elif payload_type == "view_submission":
-        # Return 200 immediately to meet Slack's 3-second deadline.
-        # Sheet writes and follow-up messages run in a background task.
-        background_tasks.add_task(_process_view_submission, payload)
+        elif payload_type == "view_submission":
+            # Return 200 immediately to meet Slack's 3-second deadline.
+            # Sheet writes and follow-up messages run in a background task.
+            background_tasks.add_task(_process_view_submission, payload)
 
-    else:
-        logger.warning(f"Unknown payload type: {payload_type}")
+        else:
+            logger.warning(f"Unknown payload type: {payload_type}")
 
-    return Response(status_code=200, content="")
+        return Response(status_code=200, content="")
+    except Exception as e:
+        logger.error(f"Error in slack_interactions: {e}", exc_info=True)
+        return Response(status_code=500, content=f"Internal error: {str(e)}")
 
 
 def _process_block_action(action_id: str, payload: dict) -> None:
