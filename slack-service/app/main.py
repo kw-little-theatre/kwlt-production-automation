@@ -80,6 +80,19 @@ async def health_check():
     return {"status": "ok"}
 
 
+@app.get("/debug/config")
+def debug_config():
+    """Debug endpoint to check if configuration is loaded correctly."""
+    return {
+        "slack_bot_token": "***" if settings.slack_bot_token else "MISSING",
+        "slack_signing_secret": "***" if settings.slack_signing_secret else "MISSING",
+        "spreadsheet_id": settings.spreadsheet_id or "MISSING",
+        "show_support_channel": settings.show_support_channel or "MISSING",
+        "slack_team_id": settings.slack_team_id or "MISSING",
+        "slack_app_id": settings.slack_app_id or "MISSING",
+    }
+
+
 @app.on_event("startup")
 def warm_cache():
     """Pre-warm the Home tab cache on startup so the first user doesn't wait."""
