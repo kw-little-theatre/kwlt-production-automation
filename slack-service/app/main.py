@@ -378,6 +378,10 @@ async def slack_events(request: Request, background_tasks: BackgroundTasks):
     """
     body = await request.body()
 
+    # Guard against empty body (health checks, etc.)
+    if not body:
+        return Response(status_code=200, content="OK")
+
     # Verify Slack signature
     if settings.slack_signing_secret:
         timestamp = request.headers.get("X-Slack-Request-Timestamp", "")
