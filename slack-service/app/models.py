@@ -110,6 +110,13 @@ class SetReadthroughResult(BaseModel):
     was_change: bool = False
 
 
+class OverdueDigestItem(BaseModel):
+    """One row in the weekly overdue digest: a show and its overdue task count."""
+
+    show: str
+    overdue_count: int
+
+
 class DigestItem(BaseModel):
     """A single item in the daily reminder digest."""
 

@@ -194,6 +194,7 @@ function installDailyTrigger() {
   const existing = ScriptApp.getProjectTriggers();
   for (const trigger of existing) {
     if (trigger.getHandlerFunction() === 'runDailyReminders' ||
+        trigger.getHandlerFunction() === 'runWeeklyOverdueDigest' ||
         trigger.getHandlerFunction() === 'onShowSetupEdit') {
       ScriptApp.deleteTrigger(trigger);
     }
@@ -202,6 +203,13 @@ function installDailyTrigger() {
   ScriptApp.newTrigger('runDailyReminders')
     .timeBased()
     .everyDays(1)
+    .atHour(TRIGGER_HOUR)
+    .create();
+
+  // Weekly overdue digest every Monday morning
+  ScriptApp.newTrigger('runWeeklyOverdueDigest')
+    .timeBased()
+    .onWeekDay(ScriptApp.WeekDay.MONDAY)
     .atHour(TRIGGER_HOUR)
     .create();
 
@@ -215,6 +223,7 @@ function installDailyTrigger() {
   SpreadsheetApp.getUi().alert(
     '⏰ Triggers Installed',
     'Daily reminders will run at approximately ' + TRIGGER_HOUR + ':00 each day.\n' +
+    'Weekly overdue digest will run every Monday at ' + TRIGGER_HOUR + ':00.\n' +
     'Show Setup date changes will be detected automatically.\n\n' +
     'You can test reminders now: Menu → 🎭 KWLT Automation → Run Reminders Now.',
     SpreadsheetApp.getUi().ButtonSet.OK

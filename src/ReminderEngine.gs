@@ -236,6 +236,74 @@ function runDailyReminders() {
   Logger.log('Daily reminders complete. Processed ' + digestItems.length + ' items across ' + activeShows.length + ' shows.');
 }
 
+// ─── Weekly Overdue Digest ────────────────────────────────────────────────────
+
+/**
+ * Sends a weekly summary of overdue tasks to the Show Support Slack channel.
+ * Called by a weekly Monday trigger. Shows only the count of overdue tasks
+ * per show, with a link to the bot's Home tab to review and mark them done.
+ */
+function runWeeklyOverdueDigest() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const config = _loadConfig(ss);
+
+  if (!config.showSupportChannel) {
+    Logger.log('Weekly overdue digest: no Show Support channel configured, skipping.');
+    return;
+  }
+  if (!config.pythonServiceUrl) {
+    Logger.log('Weekly overdue digest: no Python service URL configured, skipping.');
+    return;
+  }
+
+  const today = _stripTime(new Date());
+  const activeShows = _getActiveShows(ss);
+  const overdueByShow = [];
+
+  for (const show of activeShows) {
+    const tabName = SHOW_TAB_PREFIX + show.name;
+    const sheet = ss.getSheetByName(tabName);
+    if (!sheet) continue;
+
+    const data = sheet.getDataRange().getValues();
+    let overdueCount = 0;
+
+    for (let row = 1; row < data.length; row++) {
+      const status = data[row][COL.STATUS];
+      if (status === STATUS.DONE || status === STATUS.SKIPPED) continue;
+
+      const deadline = _stripTime(data[row][COL.COMPUTED_DATE]);
+      if (!deadline || !(deadline instanceof Date) || isNaN(deadline.getTime())) continue;
+
+      if (_daysBetween(today, deadline) < 0) {
+        overdueCount++;
+      }
+    }
+
+    if (overdueCount > 0) {
+      overdueByShow.push({ show: show.name, overdue_count: overdueCount });
+    }
+  }
+
+  if (overdueByShow.length === 0) {
+    Logger.log('Weekly overdue digest: no overdue tasks found across all shows.');
+    return;
+  }
+
+  try {
+    const response = UrlFetchApp.fetch(config.pythonServiceUrl + '/reminders/overdue-digest', {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify(overdueByShow),
+      muteHttpExceptions: true,
+    });
+    const result = JSON.parse(response.getContentText());
+    Logger.log('Weekly overdue digest sent: ' + JSON.stringify(result));
+  } catch (e) {
+    Logger.log('Weekly overdue digest error: ' + e.message);
+  }
+}
+
 // ─── Action Determination ─────────────────────────────────────────────────────
 
 /**

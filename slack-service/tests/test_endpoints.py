@@ -177,35 +177,81 @@ class TestRemindersSendEndpoint:
         assert any("skip_task:" in a for a in action_ids)
 
 
-class TestRemindersDigestEndpoint:
-    """Tests for POST /reminders/digest."""
+class TestOverdueDigestEndpoint:
+    """Tests for POST /reminders/overdue-digest."""
 
     @patch("app.main._get_slack")
     @patch("app.main.settings")
-    def test_digest_sends_to_show_support(self, mock_settings, mock_get_slack):
+    def test_sends_overdue_summary(self, mock_settings, mock_get_slack):
         mock_settings.show_support_channel = "show-support"
         mock_slack = MagicMock()
         mock_slack.send_message.return_value = {"ok": True, "ts": "123.456"}
         mock_get_slack.return_value = mock_slack
 
         items = [
-            {"show": "Hamlet", "task": "Book days", "responsible": "Director", "deadline": "2026-05-01", "action": "advance", "days_until": 5, "success": True},
-            {"show": "Hamlet", "task": "Get keys", "responsible": "SM", "deadline": "2026-05-02", "action": "urgent", "days_until": 1, "success": True},
+            {"show": "Hamlet", "overdue_count": 3},
+            {"show": "Macbeth", "overdue_count": 1},
         ]
-        response = client.post("/reminders/digest", json=items)
+        response = client.post("/reminders/overdue-digest", json=items)
         assert response.status_code == 200
         assert response.json()["ok"] is True
         mock_slack.send_message.assert_called_once()
         text = mock_slack.send_message.call_args[1]["text"]
         assert "Hamlet" in text
-        assert "2/2 reminders sent successfully" in text
+        assert "3 overdue tasks" in text
+        assert "Macbeth" in text
+        assert "1 overdue task" in text
 
     @patch("app.main.settings")
-    def test_digest_no_channel_returns_error(self, mock_settings):
+    def test_no_channel_returns_error(self, mock_settings):
         mock_settings.show_support_channel = ""
-        response = client.post("/reminders/digest", json=[])
+        response = client.post("/reminders/overdue-digest", json=[{"show": "Hamlet", "overdue_count": 2}])
         assert response.status_code == 200
         assert response.json()["ok"] is False
+
+    @patch("app.main._get_slack")
+    @patch("app.main.settings")
+    def test_all_zero_counts_skips_send(self, mock_settings, mock_get_slack):
+        mock_settings.show_support_channel = "show-support"
+        mock_slack = MagicMock()
+        mock_get_slack.return_value = mock_slack
+
+        response = client.post("/reminders/overdue-digest", json=[{"show": "Hamlet", "overdue_count": 0}])
+        assert response.status_code == 200
+        assert response.json()["ok"] is True
+        mock_slack.send_message.assert_not_called()
+
+    @patch("app.main._get_slack")
+    @patch("app.main.settings")
+    def test_filters_zero_count_shows(self, mock_settings, mock_get_slack):
+        """Shows with 0 overdue tasks should be excluded from the message."""
+        mock_settings.show_support_channel = "show-support"
+        mock_slack = MagicMock()
+        mock_slack.send_message.return_value = {"ok": True, "ts": "123.456"}
+        mock_get_slack.return_value = mock_slack
+
+        items = [
+            {"show": "Hamlet", "overdue_count": 2},
+            {"show": "All Good Show", "overdue_count": 0},
+        ]
+        response = client.post("/reminders/overdue-digest", json=items)
+        assert response.status_code == 200
+        text = mock_slack.send_message.call_args[1]["text"]
+        assert "Hamlet" in text
+        assert "All Good Show" not in text
+
+
+class TestRemindersDigestEndpoint:
+    """Tests for POST /reminders/digest."""
+
+    def test_digest_is_noop(self):
+        """Digest endpoint should return ok without sending any messages."""
+        items = [
+            {"show": "Hamlet", "task": "Book days", "responsible": "Director", "deadline": "2026-05-01", "action": "advance", "days_until": 5, "success": True},
+        ]
+        response = client.post("/reminders/digest", json=items)
+        assert response.status_code == 200
+        assert response.json()["ok"] is True
 
 
 class TestReadthroughPromptEndpoint:

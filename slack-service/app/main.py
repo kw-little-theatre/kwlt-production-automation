@@ -17,8 +17,8 @@ from fastapi import BackgroundTasks, FastAPI, Request, Response
 
 from app.config import settings
 from app.handlers import handle_block_action, handle_event
-from app.messages import build_readthrough_date_prompt, build_reminder_blocks
-from app.models import DigestItem, TaskContext
+from app.messages import build_overdue_digest_blocks, build_readthrough_date_prompt, build_reminder_blocks
+from app.models import DigestItem, OverdueDigestItem, TaskContext
 from app.reminder_logic import generate_token
 from app.verify import verify_slack_signature
 
@@ -291,52 +291,38 @@ def reminders_send(context: TaskContext):
 @app.post("/reminders/digest")
 def reminders_digest(items: list[DigestItem]):
     """
-    Sends the daily reminder digest to the Show Support Slack channel.
-    Apps Script calls this instead of _sendDailyDigestSlack() directly.
+    No-op endpoint kept for backwards compatibility with Apps Script.
+    The Show Support channel receives overdue escalations only; daily digest
+    summaries are no longer sent.
+    """
+    return {"ok": True}
+
+
+@app.post("/reminders/overdue-digest")
+def reminders_overdue_digest(items: list[OverdueDigestItem]):
+    """
+    Sends the weekly overdue task digest to the Show Support Slack channel.
+    Apps Script calls this every Monday with per-show overdue task counts.
     """
     slack = _get_slack()
 
     if not settings.show_support_channel:
         return {"ok": False, "error": "No Show Support channel configured"}
 
+    # Nothing overdue — nothing to send
+    if not items or all(i.overdue_count == 0 for i in items):
+        return {"ok": True}
+
+    # Only include shows that actually have overdue tasks
+    overdue_shows = [i for i in items if i.overdue_count > 0]
+
     try:
-        from datetime import date
-        today = date.today().strftime("%Y-%m-%d")
-
-        # Group by show
-        by_show: dict[str, list[DigestItem]] = {}
-        for item in items:
-            by_show.setdefault(item.show, []).append(item)
-
-        text = f"📋 *Show Support Reminder Summary — {today}*\n\n"
-
-        for show, show_items in by_show.items():
-            text += f"🎭 *{show}*\n"
-            for item in show_items:
-                icon = "🚨" if item.action == "overdue" else "⚠️" if item.action == "urgent" else "📋"
-                status = "sent" if item.success else "FAILED"
-                if item.days_until < 0:
-                    timing = f"{abs(item.days_until)}d overdue"
-                elif item.days_until == 0:
-                    timing = "TODAY"
-                else:
-                    timing = f"{item.days_until}d remaining"
-                text += f"  {icon} {item.task} — {item.responsible} — {timing} [{status}]\n"
-            text += "\n"
-
-        sent = sum(1 for i in items if i.success)
-        text += f"_{sent}/{len(items)} reminders sent successfully._"
-
-        from app.messages import _home_tab_deep_link
-        home_link = _home_tab_deep_link()
-        if home_link:
-            text += f"\n\n🏠 <{home_link}|Open task dashboard>"
-
-        result = slack.send_message(settings.show_support_channel, text=text)
+        msg = build_overdue_digest_blocks([{"show": i.show, "overdue_count": i.overdue_count} for i in overdue_shows])
+        result = slack.send_message(settings.show_support_channel, text=msg["text"])
         return _sanitize_slack_result(result)
     except Exception:  # CodeQL false positive: exception only logged server-side, not in response
-        logger.error("Error sending digest", exc_info=True)
-        return {"ok": False, "error": "Internal error sending digest"}
+        logger.error("Error sending overdue digest", exc_info=True)
+        return {"ok": False, "error": "Internal error sending overdue digest"}
 
 
 @app.post("/reminders/readthrough-prompt")

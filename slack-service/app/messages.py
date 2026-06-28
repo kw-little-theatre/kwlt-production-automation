@@ -126,6 +126,28 @@ def build_reminder_blocks(context: dict, action: str) -> dict:
     }
 
 
+def build_overdue_digest_blocks(items: list[dict]) -> dict:
+    """
+    Builds the weekly overdue task digest message for the Show Support channel.
+    items: list of {show, overdue_count}
+    """
+    from datetime import date
+    today = date.today().strftime("%Y-%m-%d")
+
+    lines = [f"🚨 *Weekly Overdue Summary — {today}*\n"]
+    for item in items:
+        show = item.get("show", "")
+        count = item.get("overdue_count", 0)
+        task_word = "task" if count == 1 else "tasks"
+        lines.append(f"🎭 *{show}* — {count} overdue {task_word}")
+
+    home_link = _home_tab_deep_link()
+    if home_link:
+        lines.append(f"\n<{home_link}|Open task dashboard> to view details and mark tasks done.")
+
+    return {"text": "\n".join(lines)}
+
+
 def build_overdue_escalation_blocks(context: dict) -> dict:
     """
     Builds the Slack Block Kit payload for an overdue escalation message
