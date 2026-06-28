@@ -16,7 +16,7 @@ import logging
 from fastapi import BackgroundTasks, FastAPI, Request, Response
 
 from app.config import settings
-from app.handlers import handle_block_action, handle_event
+from app.handlers import handle_block_action, handle_event, handle_view_submission
 from app.messages import build_overdue_digest_blocks, build_readthrough_date_prompt, build_reminder_blocks
 from app.models import DigestItem, OverdueDigestItem, TaskContext
 from app.reminder_logic import generate_token
@@ -106,7 +106,7 @@ def warm_cache():
 @app.post("/slack/interactions")
 async def slack_interactions(request: Request, background_tasks: BackgroundTasks):
     """
-    Handles Slack interactive component callbacks (buttons, date pickers).
+    Handles Slack interactive component callbacks (buttons, date pickers, modals).
     Replaces doPost() from WebApp.gs.
 
     Slack sends a URL-encoded body with a 'payload' JSON field.
@@ -130,28 +130,44 @@ async def slack_interactions(request: Request, background_tasks: BackgroundTasks
         return Response(status_code=400, content="Missing payload")
 
     payload = json.loads(payload_str)
+    payload_type = payload.get("type", "")
 
-    if payload.get("type") != "block_actions":
-        return Response(status_code=200, content="")
+    if payload_type == "block_actions":
+        action = payload.get("actions", [{}])[0]
+        action_id = action.get("action_id", "")
+        # Return 200 immediately to meet Slack's 3-second deadline.
+        # Sheet writes and follow-up messages run in a background task.
+        background_tasks.add_task(_process_block_action, action_id, payload)
 
-    action = payload.get("actions", [{}])[0]
-    action_id = action.get("action_id", "")
+    elif payload_type == "view_submission":
+        # Return 200 immediately to meet Slack's 3-second deadline.
+        # Sheet writes and follow-up messages run in a background task.
+        background_tasks.add_task(_process_view_submission, payload)
 
-    # Return 200 immediately to meet Slack's 3-second deadline.
-    # Sheet writes and follow-up messages run in a background task.
-    background_tasks.add_task(_process_interaction, action_id, payload)
+    else:
+        logger.warning(f"Unknown payload type: {payload_type}")
 
     return Response(status_code=200, content="")
 
 
-def _process_interaction(action_id: str, payload: dict) -> None:
-    """Background task that processes a Slack interaction after the 200 response."""
+def _process_block_action(action_id: str, payload: dict) -> None:
+    """Background task that processes a block_actions interaction after the 200 response."""
     try:
         sheets = _get_sheets()
         slack = _get_slack()
         handle_block_action(action_id, payload, sheets, slack)
     except Exception as e:
-        logger.error(f"Error handling interaction: {e}", exc_info=True)
+        logger.error(f"Error handling block_action: {e}", exc_info=True)
+
+
+def _process_view_submission(payload: dict) -> None:
+    """Background task that processes a view_submission (modal) after the 200 response."""
+    try:
+        sheets = _get_sheets()
+        slack = _get_slack()
+        handle_view_submission(payload, sheets, slack)
+    except Exception as e:
+        logger.error(f"Error handling view_submission: {e}", exc_info=True)
 
 
 # ─── Email Mark Done Handler ─────────────────────────────────────────────────
@@ -274,7 +290,7 @@ def reminders_send(context: TaskContext):
             attachments=msg["attachments"],
         )
 
-        # Send threaded reply with details
+        # Send threaded reply with details (only if there's content and parent sent successfully)
         if parent_result.get("ok") and parent_result.get("ts") and msg.get("thread_text"):
             slack.send_message(
                 context.slack_channel,

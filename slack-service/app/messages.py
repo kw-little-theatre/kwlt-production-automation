@@ -97,32 +97,37 @@ def build_reminder_blocks(context: dict, action: str) -> dict:
 
     attachments = [{"color": color, "fallback": fallback_text, "blocks": primary_blocks}]
 
-    # Threaded reply text
-    if action == "overdue":
-        status_line = f"🚨 {days_overdue} days overdue"
-    else:
-        status_line = f"🗓️ {days_until} days remaining"
+    # Threaded reply text — only for tasks with timing/anchor info
+    # Custom dates (no general_rule) don't need the detailed threaded reply
+    thread_text = ""
+    if general_rule and general_rule.strip():
+        if action == "overdue":
+            status_line = f"🚨 {days_overdue} days overdue"
+        else:
+            status_line = f"🗓️ {days_until} days remaining"
 
-    detail_lines = [
-        f"*Deadline:* {deadline}",
-        f"*Status:* {status_line}",
-        "",
-        f"📌 *Timing:* {general_rule}",
-    ]
+        detail_lines = [
+            f"*Deadline:* {deadline}",
+            f"*Status:* {status_line}",
+            "",
+            f"📌 *Timing:* {general_rule}",
+        ]
 
-    if handbook_url:
-        detail_lines.append(f"📖 <{handbook_url}|Production Handbook>")
-    if resources_url:
-        detail_lines.append(f"📁 <{resources_url}|Show Resources Folder>")
+        if handbook_url:
+            detail_lines.append(f"📖 <{handbook_url}|Production Handbook>")
+        if resources_url:
+            detail_lines.append(f"📁 <{resources_url}|Show Resources Folder>")
 
-    detail_lines.append("")
-    home_link = _home_tab_deep_link()
-    if home_link:
-        detail_lines.append(f"🏠 <{home_link}|Open task dashboard> to see and manage all tasks")
+        detail_lines.append("")
+        home_link = _home_tab_deep_link()
+        if home_link:
+            detail_lines.append(f"🏠 <{home_link}|Open task dashboard> to see and manage all tasks")
+
+        thread_text = "\n".join(detail_lines)
 
     return {
         "attachments": attachments,
-        "thread_text": "\n".join(detail_lines),
+        "thread_text": thread_text,
     }
 
 
@@ -888,6 +893,12 @@ def build_home_tab(show_name: str, task_groups: dict, all_shows: list[dict], vie
         "text": {"type": "plain_text", "text": "🔄 Refresh Tasks", "emoji": True},
         "action_id": f"home_refresh:{quote(show_name)}",
     })
+    
+    toggle_elements.append({
+        "type": "button",
+        "text": {"type": "plain_text", "text": "+ Add Task", "emoji": True},
+        "action_id": "home_add_task",
+    })
 
     blocks.append({
         "type": "actions",
@@ -1021,3 +1032,96 @@ def _is_valid_date(date_str: str) -> bool:
         return True
     except (ValueError, TypeError):
         return False
+
+
+def build_add_task_modal(all_shows: list[dict]) -> dict:
+    """
+    Builds the Slack modal for adding a new production task.
+    
+    Modal fields:
+    - Show (dropdown, read-only from active shows)
+    - Task name (text input)
+    - Responsible (text input)
+    - Deadline (date picker)
+    - Notes (optional text input)
+    
+    Sorted by deadline means the submission handler will insert
+    the new row at the correct position in the show's timeline sheet.
+    """
+    show_options = [
+        {
+            "text": {"type": "plain_text", "text": s["show_name"], "emoji": True},
+            "value": s["show_name"],
+        }
+        for s in all_shows
+    ]
+    
+    # Default to first show if available
+    initial_option = show_options[0] if show_options else None
+    
+    return {
+        "type": "modal",
+        "callback_id": "add_task_submission",
+        "title": {"type": "plain_text", "text": "+ Add Task", "emoji": True},
+        "submit": {"type": "plain_text", "text": "Add Task", "emoji": True},
+        "close": {"type": "plain_text", "text": "Cancel", "emoji": True},
+        "blocks": [
+            {
+                "type": "input",
+                "block_id": "show_selection",
+                "label": {"type": "plain_text", "text": "Show", "emoji": True},
+                "element": {
+                    "type": "static_select",
+                    "action_id": "show_select",
+                    "options": show_options,
+                    **({"initial_option": initial_option} if initial_option else {}),
+                } if show_options else {
+                    "type": "plain_text_input",
+                    "action_id": "show_select",
+                    "placeholder": {"type": "plain_text", "text": "No active shows"},
+                },
+            },
+            {
+                "type": "input",
+                "block_id": "task_name_block",
+                "label": {"type": "plain_text", "text": "Task name", "emoji": True},
+                "element": {
+                    "type": "plain_text_input",
+                    "action_id": "task_name",
+                    "placeholder": {"type": "plain_text", "text": "e.g., Finalize costume designs"},
+                },
+            },
+            {
+                "type": "input",
+                "block_id": "responsible_block",
+                "label": {"type": "plain_text", "text": "Responsible", "emoji": True},
+                "element": {
+                    "type": "plain_text_input",
+                    "action_id": "responsible",
+                    "placeholder": {"type": "plain_text", "text": "Name or team"},
+                },
+            },
+            {
+                "type": "input",
+                "block_id": "deadline_block",
+                "label": {"type": "plain_text", "text": "Deadline", "emoji": True},
+                "element": {
+                    "type": "datepicker",
+                    "action_id": "deadline",
+                    "placeholder": {"type": "plain_text", "text": "Pick a date"},
+                },
+            },
+            {
+                "type": "input",
+                "block_id": "notes_block",
+                "label": {"type": "plain_text", "text": "Notes (optional)", "emoji": True},
+                "element": {
+                    "type": "plain_text_input",
+                    "action_id": "notes",
+                    "multiline": True,
+                    "placeholder": {"type": "plain_text", "text": "Any additional context"},
+                },
+                "optional": True,
+            },
+        ],
+    }

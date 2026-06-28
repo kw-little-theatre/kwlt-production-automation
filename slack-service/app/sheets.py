@@ -486,3 +486,100 @@ class SheetRepository:
             success=False,
             message=f'Task "{task_text}" not found in the {show_name} timeline.',
         )
+
+    def add_task(
+        self,
+        show_name: str,
+        task_name: str,
+        responsible: str,
+        deadline: str,
+        notes: str = "",
+    ) -> MarkTaskResult:
+        """
+        Adds a new production task to a show's timeline, sorted by deadline.
+        
+        Args:
+            show_name: Name of the show
+            task_name: Description of the task
+            responsible: Person/team responsible
+            deadline: Deadline date (YYYY-MM-DD format)
+            notes: Optional notes
+        
+        Returns:
+            MarkTaskResult with success flag and message
+        """
+        from datetime import datetime as dt
+
+        sheet = self._get_show_sheet(show_name)
+        if not sheet:
+            return MarkTaskResult(
+                success=False,
+                message=f'Show tab "{SHOW_TAB_PREFIX}{show_name}" not found.',
+            )
+
+        data = sheet.get_all_values()
+
+        # ─── Find the correct row position based on deadline (sorted order) ───────
+        insert_at_row = len(data) + 1  # Default: append at end
+        
+        try:
+            deadline_date = dt.strptime(deadline, "%Y-%m-%d").date()
+            
+            # Scan existing tasks to find where this one should go
+            # Row 0 is header, so we start checking from row 1 (data[1])
+            for row_idx, raw_row in enumerate(data[1:], start=2):
+                row = self._pad_row(raw_row)
+                existing_date_str = row[COL.COMPUTED_DATE].strip()
+                
+                if not existing_date_str:
+                    # Skip rows with no date (shouldn't happen in a well-formed sheet)
+                    continue
+                
+                try:
+                    existing_date = dt.strptime(existing_date_str, "%Y-%m-%d").date()
+                    
+                    # Insert before the first task with a later deadline
+                    if deadline_date < existing_date:
+                        insert_at_row = row_idx
+                        break
+                except ValueError:
+                    # Skip rows with unparseable dates
+                    continue
+        except ValueError:
+            return MarkTaskResult(
+                success=False,
+                message=f"Invalid deadline format. Use YYYY-MM-DD (got: {deadline}).",
+            )
+
+        # ─── Build the new row ───────────────────────────────────────────────────
+        now_str = dt.now().strftime("%Y-%m-%d %H:%M:%S")
+        new_row = [
+            task_name,                                    # COL.TASK
+            responsible,                                  # COL.RESPONSIBLE
+            "",                                           # COL.GENERAL_RULE (empty for manual tasks)
+            "",                                           # COL.ANCHOR_REF (empty for manual tasks)
+            "",                                           # COL.OFFSET_DAYS (empty for manual tasks)
+            deadline,                                     # COL.COMPUTED_DATE
+            STATUS.PENDING,                               # COL.STATUS
+            "slack",                                      # COL.NOTIFY_VIA
+            "",                                           # COL.LAST_NOTIFIED
+            notes or f"Created via Slack at {now_str}",  # COL.NOTES
+        ]
+
+        # ─── Insert the row at the computed position ─────────────────────────────
+        try:
+            sheet.insert_row(new_row, index=insert_at_row, value_input_option="USER_ENTERED")
+            
+            # Log the send for audit trail
+            self.log_send(show_name, task_name, responsible, "slack", "task-created", True)
+            
+            return MarkTaskResult(
+                success=True,
+                message=f"✅ Task '{task_name}' added to {show_name} — due {deadline}",
+            )
+        except Exception as e:
+            logger.error(f"Error inserting task into {show_name}: {e}", exc_info=True)
+            return MarkTaskResult(
+                success=False,
+                message=f"Failed to add task: {str(e)}",
+            )

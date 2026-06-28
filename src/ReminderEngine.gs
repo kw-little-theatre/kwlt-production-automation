@@ -613,6 +613,13 @@ function _resolveRecipientEmail(context, config) {
  * @returns {{ ok: boolean, error: string }}
  */
 function _sendSlackViaPython(serviceUrl, context) {
+  // Validate that the service URL is configured
+  if (!serviceUrl || serviceUrl.trim() === '') {
+    const msg = 'PYTHON_SERVICE_URL is not configured. Go to 🎭 KWLT Automation → 🔐 Manage Secrets and set it to your ngrok tunnel URL (e.g., https://xxxx-xxx-xxx-xxx.ngrok-free.app)';
+    Logger.log('❌ ' + msg);
+    return { ok: false, error: msg };
+  }
+
   const payload = {
     show_name: context.showName,
     task: context.task,
@@ -639,13 +646,31 @@ function _sendSlackViaPython(serviceUrl, context) {
       muteHttpExceptions: true,
     });
 
-    const result = JSON.parse(response.getContentText());
+    const statusCode = response.getResponseCode();
+    const contentText = response.getContentText();
+
+    // Check for HTTP errors
+    if (statusCode >= 400) {
+      const msg = 'Python service returned HTTP ' + statusCode + '. Response: ' + contentText.substring(0, 200);
+      Logger.log('❌ ' + msg);
+      return { ok: false, error: msg };
+    }
+
+    // Try to parse JSON response
+    let result;
+    try {
+      result = JSON.parse(contentText);
+    } catch (parseError) {
+      const msg = 'Python service returned invalid JSON (status ' + statusCode + '). This may indicate a connectivity issue or that the service URL is incorrect. Check that PYTHON_SERVICE_URL is set to your ngrok tunnel: ' + serviceUrl;
+      Logger.log('❌ ' + msg);
+      return { ok: false, error: msg };
+    }
+
     return result;
   } catch (e) {
-    Logger.log('Python service error: ' + e.message + '. Falling back to direct Slack.');
-    // Return failure — the caller should NOT retry via direct Slack here;
-    // the caller can decide to fall back if needed.
-    return { ok: false, error: 'Python service unavailable: ' + e.message };
+    const msg = 'Python service unreachable: ' + e.message + '. Check that PYTHON_SERVICE_URL is correct and the tunnel/service is running.';
+    Logger.log('❌ ' + msg);
+    return { ok: false, error: msg };
   }
 }
 
@@ -654,6 +679,13 @@ function _sendSlackViaPython(serviceUrl, context) {
  * Falls back to direct Slack if the service is unreachable.
  */
 function _sendDailyDigestViaPython(serviceUrl, digestItems) {
+  // Validate that the service URL is configured
+  if (!serviceUrl || serviceUrl.trim() === '') {
+    const msg = 'PYTHON_SERVICE_URL is not configured. Go to 🎭 KWLT Automation → 🔐 Manage Secrets and set it to your ngrok tunnel URL (e.g., https://xxxx-xxx-xxx-xxx.ngrok-free.app)';
+    Logger.log('❌ ' + msg);
+    return { ok: false, error: msg };
+  }
+
   const payload = digestItems.map(function(item) {
     return {
       show: item.show,
@@ -673,10 +705,32 @@ function _sendDailyDigestViaPython(serviceUrl, digestItems) {
       payload: JSON.stringify(payload),
       muteHttpExceptions: true,
     });
-    return JSON.parse(response.getContentText());
+
+    const statusCode = response.getResponseCode();
+    const contentText = response.getContentText();
+
+    // Check for HTTP errors
+    if (statusCode >= 400) {
+      const msg = 'Python service returned HTTP ' + statusCode + '. Response: ' + contentText.substring(0, 200);
+      Logger.log('❌ ' + msg);
+      return { ok: false, error: msg };
+    }
+
+    // Try to parse JSON response
+    let result;
+    try {
+      result = JSON.parse(contentText);
+    } catch (parseError) {
+      const msg = 'Python service returned invalid JSON (status ' + statusCode + '). This may indicate a connectivity issue or that the service URL is incorrect. Check that PYTHON_SERVICE_URL is set to your ngrok tunnel: ' + serviceUrl;
+      Logger.log('❌ ' + msg);
+      return { ok: false, error: msg };
+    }
+
+    return result;
   } catch (e) {
-    Logger.log('Python service digest error: ' + e.message);
-    return { ok: false, error: e.message };
+    const msg = 'Python service unreachable: ' + e.message + '. Check that PYTHON_SERVICE_URL is correct and the tunnel/service is running.';
+    Logger.log('❌ ' + msg);
+    return { ok: false, error: msg };
   }
 }
 
@@ -684,6 +738,13 @@ function _sendDailyDigestViaPython(serviceUrl, digestItems) {
  * Sends a readthrough date prompt via the Python service.
  */
 function _sendReadthroughPromptViaPython(serviceUrl, showName, channel) {
+  // Validate that the service URL is configured
+  if (!serviceUrl || serviceUrl.trim() === '') {
+    const msg = 'PYTHON_SERVICE_URL is not configured. Go to 🎭 KWLT Automation → 🔐 Manage Secrets and set it to your ngrok tunnel URL (e.g., https://xxxx-xxx-xxx-xxx.ngrok-free.app)';
+    Logger.log('❌ ' + msg);
+    return { ok: false, error: msg };
+  }
+
   try {
     const response = UrlFetchApp.fetch(
       serviceUrl + '/reminders/readthrough-prompt?show_name=' + encodeURIComponent(showName) + '&channel=' + encodeURIComponent(channel),
@@ -692,10 +753,32 @@ function _sendReadthroughPromptViaPython(serviceUrl, showName, channel) {
         muteHttpExceptions: true,
       }
     );
-    return JSON.parse(response.getContentText());
+
+    const statusCode = response.getResponseCode();
+    const contentText = response.getContentText();
+
+    // Check for HTTP errors
+    if (statusCode >= 400) {
+      const msg = 'Python service returned HTTP ' + statusCode + '. Response: ' + contentText.substring(0, 200);
+      Logger.log('❌ ' + msg);
+      return { ok: false, error: msg };
+    }
+
+    // Try to parse JSON response
+    let result;
+    try {
+      result = JSON.parse(contentText);
+    } catch (parseError) {
+      const msg = 'Python service returned invalid JSON (status ' + statusCode + '). This may indicate a connectivity issue or that the service URL is incorrect. Check that PYTHON_SERVICE_URL is set to your ngrok tunnel: ' + serviceUrl;
+      Logger.log('❌ ' + msg);
+      return { ok: false, error: msg };
+    }
+
+    return result;
   } catch (e) {
-    Logger.log('Python service readthrough prompt error: ' + e.message);
-    return { ok: false, error: e.message };
+    const msg = 'Python service unreachable: ' + e.message + '. Check that PYTHON_SERVICE_URL is correct and the tunnel/service is running.';
+    Logger.log('❌ ' + msg);
+    return { ok: false, error: msg };
   }
 }
 

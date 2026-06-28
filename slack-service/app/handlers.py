@@ -245,6 +245,11 @@ def handle_block_action(
         if user_id:
             _refresh_home_tab(user_id, show_name, sheets, slack, view_mode="upcoming")
 
+    elif action_id == "home_add_task":
+        trigger_id = payload.get("trigger_id", "")
+        if trigger_id:
+            _handle_add_task_button(trigger_id, sheets, slack)
+
     else:
         logger.warning(f"Unknown action_id: {action_id}")
 
@@ -646,3 +651,99 @@ def _publish_loading_state(user_id: str, show_name: str, slack: SlackClient) -> 
         ],
     }
     slack.publish_home_tab(user_id, loading_view)
+
+
+def _handle_add_task_button(
+    trigger_id: str,
+    sheets: SheetRepository,
+    slack: SlackClient,
+) -> None:
+    """
+    Handles the + Add Task button click.
+    Opens the add-task modal with active shows pre-populated.
+    """
+    try:
+        all_shows = sheets.get_all_active_shows()
+        from app.messages import build_add_task_modal
+        modal = build_add_task_modal(all_shows)
+        slack.views_open(trigger_id, modal)
+    except Exception as e:
+        logger.error(f"Error opening add-task modal: {e}", exc_info=True)
+
+
+def handle_view_submission(
+    payload: dict,
+    sheets: SheetRepository,
+    slack: SlackClient,
+) -> None:
+    """
+    Handles Slack view_submission interactions (modal submissions).
+    Routes based on callback_id.
+    """
+    view = payload.get("view", {})
+    callback_id = view.get("callback_id", "")
+    user_id = payload.get("user", {}).get("id", "")
+    user_name = f"<@{user_id}>" if user_id else "Someone"
+
+    if callback_id == "add_task_submission":
+        _handle_add_task_submission(view, user_id, user_name, sheets, slack)
+    else:
+        logger.warning(f"Unknown view callback_id: {callback_id}")
+
+
+def _handle_add_task_submission(
+    view: dict,
+    user_id: str,
+    user_name: str,
+    sheets: SheetRepository,
+    slack: SlackClient,
+) -> None:
+    """
+    Processes the add-task modal submission.
+    Extracts form values and calls sheets.add_task(). Only notifies on error.
+    """
+    try:
+        blocks = view.get("state", {}).get("values", {})
+        
+        # Extract form values
+        show_name = (
+            blocks.get("show_selection", {})
+            .get("show_select", {})
+            .get("selected_option", {})
+            .get("value", "")
+        ) or (
+            blocks.get("show_selection", {})
+            .get("show_select", {})
+            .get("value", "")
+        )
+        
+        task_name = blocks.get("task_name_block", {}).get("task_name", {}).get("value", "").strip()
+        responsible = blocks.get("responsible_block", {}).get("responsible", {}).get("value", "").strip()
+        deadline = blocks.get("deadline_block", {}).get("deadline", {}).get("selected_date", "").strip()
+        notes = blocks.get("notes_block", {}).get("notes", {}).get("value", "").strip()
+
+        # Validate required fields
+        if not show_name:
+            slack.send_ephemeral(user_id, "⚠️ Please select a show.")
+            return
+        if not task_name:
+            slack.send_ephemeral(user_id, "⚠️ Please enter a task name.")
+            return
+        if not responsible:
+            slack.send_ephemeral(user_id, "⚠️ Please enter who is responsible.")
+            return
+        if not deadline:
+            slack.send_ephemeral(user_id, "⚠️ Please select a deadline.")
+            return
+
+        # Add the task to the sheet
+        result = sheets.add_task(show_name, task_name, responsible, deadline, notes)
+
+        # Only notify on error; successful additions are silent to avoid spam
+        if not result.success:
+            error_msg = f"⚠️ Could not add task: {result.message}"
+            slack.send_ephemeral(user_id, error_msg)
+
+    except Exception as e:
+        logger.error(f"Error processing add-task submission: {e}", exc_info=True)
+        slack.send_ephemeral(user_id, f"⚠️ An error occurred: {str(e)}")

@@ -142,3 +142,65 @@ class SlackClient:
         except Exception as e:
             logger.error(f"Exception publishing Home tab: {e}")
             return {"ok": False, "error": str(e)}
+
+    def views_open(self, trigger_id: str, view: dict) -> dict:
+        """
+        Open a modal view in response to a button click or shortcut.
+        The view must have type: "modal".
+
+        Args:
+            trigger_id: The trigger_id from the interaction payload
+            view: The modal view definition
+
+        Returns: { "ok": bool, "error": str | None }
+        """
+        if not trigger_id:
+            return {"ok": False, "error": "No trigger_id provided"}
+
+        try:
+            self.client.views_open(trigger_id=trigger_id, view=view)
+            logger.info(f"Opened modal for trigger {trigger_id[:20]}...")
+            return {"ok": True}
+        except SlackApiError as e:
+            error_msg = e.response.get("error", str(e))
+            logger.error(f"Failed to open modal: {error_msg}")
+            return {"ok": False, "error": error_msg}
+        except Exception as e:
+            logger.error(f"Exception opening modal: {e}")
+            return {"ok": False, "error": str(e)}
+
+    def send_ephemeral(self, user_id: str, text: str, channel: Optional[str] = None) -> dict:
+        """
+        Send an ephemeral (visible only to the user) message.
+        Can be used in the context of a channel or as a DM.
+
+        Args:
+            user_id: The user ID to send the ephemeral message to
+            text: The message text
+            channel: Optional channel ID (if in a channel context)
+
+        Returns: { "ok": bool, "error": str | None }
+        """
+        if not user_id or not text:
+            return {"ok": False, "error": "Missing user_id or text"}
+
+        try:
+            # If no channel is specified, try to send as a DM (home context)
+            # Otherwise, send as ephemeral in the given channel
+            kwargs = {
+                "user": user_id,
+                "text": text,
+            }
+            if channel:
+                kwargs["channel"] = channel
+
+            self.client.chat_postEphemeral(**kwargs)
+            logger.info(f"Sent ephemeral message to {user_id}")
+            return {"ok": True}
+        except SlackApiError as e:
+            error_msg = e.response.get("error", str(e))
+            logger.error(f"Failed to send ephemeral message: {error_msg}")
+            return {"ok": False, "error": error_msg}
+        except Exception as e:
+            logger.error(f"Exception sending ephemeral message: {e}")
+            return {"ok": False, "error": str(e)}
