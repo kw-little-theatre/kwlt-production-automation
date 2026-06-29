@@ -20,3 +20,8 @@ Thumbs.db
 *.swo
 *~
 resources/
+
+# Secrets — never commit
+slack-service/credentials.json
+credentials.json
+new-key.json

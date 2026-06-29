@@ -80,19 +80,6 @@ async def health_check():
     return {"status": "ok"}
 
 
-@app.get("/debug/config")
-def debug_config():
-    """Debug endpoint to check if configuration is loaded correctly."""
-    return {
-        "slack_bot_token": "***" if settings.slack_bot_token else "MISSING",
-        "slack_signing_secret": "***" if settings.slack_signing_secret else "MISSING",
-        "spreadsheet_id": settings.spreadsheet_id or "MISSING",
-        "show_support_channel": settings.show_support_channel or "MISSING",
-        "slack_team_id": settings.slack_team_id or "MISSING",
-        "slack_app_id": settings.slack_app_id or "MISSING",
-    }
-
-
 @app.on_event("startup")
 def warm_cache():
     """Pre-warm the Home tab cache on startup so the first user doesn't wait."""
@@ -394,9 +381,10 @@ async def slack_events(request: Request, background_tasks: BackgroundTasks):
     See: https://api.slack.com/events/url_verification
     """
     body = await request.body()
+    body_str = body.decode("utf-8") if isinstance(body, bytes) else body
 
-    # Guard against empty body (health checks, etc.)
-    if not body:
+    # Guard against empty/whitespace-only body (health checks, etc.)
+    if not body_str.strip():
         return Response(status_code=200, content="OK")
 
     # Verify Slack signature
@@ -407,7 +395,8 @@ async def slack_events(request: Request, background_tasks: BackgroundTasks):
             logger.warning("Slack Events: signature verification failed")
             return Response(status_code=401, content="Invalid signature")
 
-    event_body = json.loads(body)
+    # Parse JSON
+    event_body = json.loads(body_str)
 
     # Handle URL verification challenge (Slack sends this when you first set the URL)
     if event_body.get("type") == "url_verification":
