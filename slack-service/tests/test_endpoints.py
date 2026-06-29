@@ -127,6 +127,7 @@ class TestRemindersSendEndpoint:
             "show_name": "Test Show",
             "task": "Submit poster",
             "responsible": "Producer",
+            "general_rule": "6 weeks before opening",
             "deadline": "2026-05-01",
             "days_until": 5,
             "slack_channel": "show-test",

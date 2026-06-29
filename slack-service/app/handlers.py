@@ -52,6 +52,76 @@ _home_tab_cache: dict[str, dict] = {}
 _shows_cache: dict[str, object] = {}  # cached show list — no TTL, refreshed manually
 HOME_TAB_CACHE_TTL = 1800  # 30 minutes for task data
 
+# ─── Date Change Batcher ──────────────────────────────────────────────────────
+# Collects date-change notifications per show and sends a single batched message
+# to the Show Support channel after a quiet period (no new changes for BATCH_DELAY
+# seconds). This avoids spam when someone updates many dates at once.
+
+BATCH_DELAY = 300  # seconds (5 min) to wait after the last change before sending
+
+
+class _DateChangeBatcher:
+    """Accumulates date-change events per show and flushes them as a single message."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        # {show_name: {"changes": [(task_text, selected_date, user_name), ...], "timer": Timer}}
+        self._pending: dict[str, dict] = {}
+
+    def add(
+        self,
+        show_name: str,
+        task_text: str,
+        selected_date: str,
+        user_name: str,
+        slack: SlackClient,
+    ) -> None:
+        """Record a date change. Resets the flush timer for this show."""
+        with self._lock:
+            bucket = self._pending.setdefault(show_name, {"changes": [], "timer": None})
+            bucket["changes"].append((task_text, selected_date, user_name))
+
+            # Cancel any existing timer and start a new one
+            if bucket["timer"] is not None:
+                bucket["timer"].cancel()
+            bucket["timer"] = threading.Timer(
+                BATCH_DELAY, self._flush, args=(show_name, slack)
+            )
+            bucket["timer"].daemon = True
+            bucket["timer"].start()
+
+    def _flush(self, show_name: str, slack: SlackClient) -> None:
+        """Send the batched notification and clear the bucket."""
+        with self._lock:
+            bucket = self._pending.pop(show_name, None)
+        if not bucket or not bucket["changes"]:
+            return
+
+        changes = bucket["changes"]
+        channel = settings.show_support_channel
+        if not channel:
+            return
+
+        if len(changes) == 1:
+            task_text, selected_date, user_name = changes[0]
+            text = (
+                f"📅 *Date changed — {show_name}*\n"
+                f"*{task_text}* deadline moved to *{selected_date}* by {user_name}"
+            )
+        else:
+            lines = [f"📅 *{len(changes)} dates changed — {show_name}*"]
+            for task_text, selected_date, user_name in changes:
+                lines.append(f"• *{task_text}* → *{selected_date}* (by {user_name})")
+            text = "\n".join(lines)
+
+        try:
+            slack.send_message(channel, text=text)
+        except Exception:
+            logger.error("Failed to send batched date-change notification", exc_info=True)
+
+
+_date_change_batcher = _DateChangeBatcher()
+
 
 def _get_user_lock(user_id: str) -> threading.Lock:
     """Get or create a lock for a specific user's Home tab operations."""
@@ -244,6 +314,11 @@ def handle_block_action(
         user_id = payload.get("user", {}).get("id", "")
         if user_id:
             _refresh_home_tab(user_id, show_name, sheets, slack, view_mode="upcoming")
+
+    elif action_id == "home_add_task":
+        trigger_id = payload.get("trigger_id", "")
+        if trigger_id:
+            _handle_add_task_button(trigger_id, sheets, slack)
 
     else:
         logger.warning(f"Unknown action_id: {action_id}")
@@ -646,3 +721,99 @@ def _publish_loading_state(user_id: str, show_name: str, slack: SlackClient) -> 
         ],
     }
     slack.publish_home_tab(user_id, loading_view)
+
+
+def _handle_add_task_button(
+    trigger_id: str,
+    sheets: SheetRepository,
+    slack: SlackClient,
+) -> None:
+    """
+    Handles the + Add Task button click.
+    Opens the add-task modal with active shows pre-populated.
+    """
+    try:
+        all_shows = sheets.get_all_active_shows()
+        from app.messages import build_add_task_modal
+        modal = build_add_task_modal(all_shows)
+        slack.views_open(trigger_id, modal)
+    except Exception as e:
+        logger.error(f"Error opening add-task modal: {e}", exc_info=True)
+
+
+def handle_view_submission(
+    payload: dict,
+    sheets: SheetRepository,
+    slack: SlackClient,
+) -> None:
+    """
+    Handles Slack view_submission interactions (modal submissions).
+    Routes based on callback_id.
+    """
+    view = payload.get("view", {})
+    callback_id = view.get("callback_id", "")
+    user_id = payload.get("user", {}).get("id", "")
+    user_name = f"<@{user_id}>" if user_id else "Someone"
+
+    if callback_id == "add_task_submission":
+        _handle_add_task_submission(view, user_id, user_name, sheets, slack)
+    else:
+        logger.warning(f"Unknown view callback_id: {callback_id}")
+
+
+def _handle_add_task_submission(
+    view: dict,
+    user_id: str,
+    user_name: str,
+    sheets: SheetRepository,
+    slack: SlackClient,
+) -> None:
+    """
+    Processes the add-task modal submission.
+    Extracts form values and calls sheets.add_task(). Only notifies on error.
+    """
+    try:
+        blocks = view.get("state", {}).get("values", {})
+        
+        # Extract form values
+        show_name = (
+            blocks.get("show_selection", {})
+            .get("show_select", {})
+            .get("selected_option", {})
+            .get("value", "")
+        ) or (
+            blocks.get("show_selection", {})
+            .get("show_select", {})
+            .get("value", "")
+        )
+        
+        task_name = blocks.get("task_name_block", {}).get("task_name", {}).get("value", "").strip()
+        responsible = blocks.get("responsible_block", {}).get("responsible", {}).get("value", "").strip()
+        deadline = blocks.get("deadline_block", {}).get("deadline", {}).get("selected_date", "").strip()
+        notes = blocks.get("notes_block", {}).get("notes", {}).get("value", "").strip()
+
+        # Validate required fields
+        if not show_name:
+            slack.send_ephemeral(user_id, "⚠️ Please select a show.")
+            return
+        if not task_name:
+            slack.send_ephemeral(user_id, "⚠️ Please enter a task name.")
+            return
+        if not responsible:
+            slack.send_ephemeral(user_id, "⚠️ Please enter who is responsible.")
+            return
+        if not deadline:
+            slack.send_ephemeral(user_id, "⚠️ Please select a deadline.")
+            return
+
+        # Add the task to the sheet
+        result = sheets.add_task(show_name, task_name, responsible, deadline, notes)
+
+        # Only notify on error; successful additions are silent to avoid spam
+        if not result.success:
+            error_msg = f"⚠️ Could not add task: {result.message}"
+            slack.send_ephemeral(user_id, error_msg)
+
+    except Exception as e:
+        logger.error(f"Error processing add-task submission: {e}", exc_info=True)
+        slack.send_ephemeral(user_id, f"⚠️ An error occurred: {str(e)}")

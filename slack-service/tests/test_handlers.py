@@ -5,7 +5,7 @@ These test the handler routing and business logic using mocked
 SheetRepository and SlackClient — no real Sheets API or Slack calls.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from typing import Optional
 
 from app.handlers import handle_block_action
