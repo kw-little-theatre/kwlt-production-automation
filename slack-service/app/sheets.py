@@ -11,7 +11,6 @@ a seam for testing (can be mocked or pointed at a test spreadsheet).
 from __future__ import annotations
 
 import logging
-import os
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
