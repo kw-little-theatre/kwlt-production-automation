@@ -9,9 +9,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY app/ app/
 
-# Copy Google Sheets credentials (required for gspread authentication)
-COPY credentials.json .
-
 # Copy resource documents for RAG ingestion (Phase 4)
 # COPY ../resources/ resources/
 
