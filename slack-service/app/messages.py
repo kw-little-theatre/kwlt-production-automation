@@ -270,6 +270,15 @@ def build_mark_done_confirmation(show_name: str, task_text: str, user_name: str)
                     "type": "button",
                     "text": {"type": "plain_text", "text": "↩️ Undo", "emoji": True},
                     "action_id": f"mark_undone:{quote(show_name)}:{quote(task_text)}",
+                    "confirm": {
+                        "title": {"type": "plain_text", "text": "Reopen this task?"},
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": f"This marks *{task_text}* as not done and reminders will resume.",
+                        },
+                        "confirm": {"type": "plain_text", "text": "Reopen"},
+                        "deny": {"type": "plain_text", "text": "Cancel"},
+                    },
                 }
             ],
         },
@@ -280,6 +289,106 @@ def build_mark_done_confirmation(show_name: str, task_text: str, user_name: str)
             {
                 "color": "#059669",
                 "fallback": f"✅ {task_text} marked done by {user_name}",
+                "blocks": blocks,
+            }
+        ],
+    }
+
+
+def build_task_processing_message(task_text: str, label: str = "Working") -> dict:
+    """
+    Transient 'loading' state shown while a sheet write is in progress.
+    Has no buttons, so rapid repeat-clicks during processing do nothing (this
+    prevents accidentally hitting the Undo button that replaces Mark Done).
+    """
+    return {
+        "attachments": [
+            {
+                "color": "#9ca3af",
+                "fallback": f"⏳ {label}: {task_text}",
+                "blocks": [
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": f"⏳ *{task_text}* — {label}…",
+                        },
+                    }
+                ],
+            }
+        ],
+    }
+
+
+def build_task_action_failed_message(show_name: str, task_text: str, message: str) -> dict:
+    """
+    Shown when a Mark Done write fails after the loading state was displayed, so
+    the message is never left stuck on 'Marking done…'. Offers a retry.
+    """
+    blocks = [
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"⚠️ Couldn't mark *{task_text}* done: {message}\nYou can try again.",
+            },
+        },
+        {
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "✅ Mark Done", "emoji": True},
+                    "style": "primary",
+                    "action_id": f"mark_done:{quote(show_name)}:{quote(task_text)}",
+                }
+            ],
+        },
+    ]
+
+    return {
+        "attachments": [
+            {
+                "color": "#dc2626",
+                "fallback": f"⚠️ Couldn't mark {task_text} done",
+                "blocks": blocks,
+            }
+        ],
+    }
+
+
+def build_mark_undone_message(show_name: str, task_text: str, user_name: str) -> dict:
+    """
+    Builds the Slack Block Kit payload shown when a task is reopened (undone).
+    Replaces the original message in place and offers a Mark Done button so the
+    done/undo cycle can repeat without posting new messages.
+    """
+    blocks = [
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"↩️ *{task_text}* reopened by {user_name} — reminders will resume.",
+            },
+        },
+        {
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "✅ Mark Done", "emoji": True},
+                    "style": "primary",
+                    "action_id": f"mark_done:{quote(show_name)}:{quote(task_text)}",
+                }
+            ],
+        },
+    ]
+
+    return {
+        "attachments": [
+            {
+                "color": "#f59e0b",
+                "fallback": f"↩️ {task_text} reopened by {user_name}",
                 "blocks": blocks,
             }
         ],

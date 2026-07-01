@@ -413,11 +413,10 @@ def _process_event(event_body: dict) -> None:
     """Background task that processes a Slack event after the 200 response."""
     try:
         event_type = event_body.get("event", {}).get("type", "unknown")
-        print(f"[DEBUG] Processing event: {event_type}", flush=True)
+        logger.debug(f"Processing event: {event_type}")
         sheets = _get_sheets()
         slack = _get_slack()
         handle_event(event_body, sheets, slack)
-        print(f"[DEBUG] Event {event_type} processed successfully", flush=True)
+        logger.debug(f"Event {event_type} processed successfully")
     except Exception as e:
-        print(f"[DEBUG] Error handling event: {e}", flush=True)
         logger.error(f"Error handling event: {e}", exc_info=True)

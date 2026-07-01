@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.models import MarkTaskResult
+from app.models import MarkTaskResult, SetReadthroughResult
 
 client = TestClient(app)
 
@@ -98,6 +98,40 @@ class TestSlackInteractionsEndpoint:
         })
         response = client.post("/slack/interactions", data={"payload": payload})
         assert response.status_code == 200
+
+    @patch("app.main._get_slack")
+    @patch("app.main._get_sheets")
+    @patch("app.main.settings")
+    def test_readthrough_date_persists_to_sheet(self, mock_settings, mock_get_sheets, mock_get_slack):
+        """End-to-end: a readthrough date pick must write the date to the sheet
+        and post a confirmation. This is the regression guard for the bug where
+        the date was never persisted (so daily prompts kept firing)."""
+        mock_settings.slack_signing_secret = ""  # skip verification
+        mock_sheets = MagicMock()
+        mock_sheets.set_readthrough_date.return_value = SetReadthroughResult(
+            success=True, message="Readthrough date set to 2026-07-15"
+        )
+        mock_get_sheets.return_value = mock_sheets
+        mock_slack = MagicMock()
+        mock_get_slack.return_value = mock_slack
+
+        payload = json.dumps({
+            "type": "block_actions",
+            "actions": [{
+                "action_id": "readthrough_date:Rent",
+                "selected_date": "2026-07-15",
+            }],
+            "user": {"id": "U123", "name": "producer"},
+            "channel": {"id": "C123"},
+            "response_url": "https://hooks.slack.com/actions/test",
+        })
+        response = client.post("/slack/interactions", data={"payload": payload})
+        assert response.status_code == 200
+
+        # The date must be written to the Show Setup sheet (the core fix)
+        mock_sheets.set_readthrough_date.assert_called_once_with("Rent", "2026-07-15")
+        # And a confirmation should be posted to the channel
+        mock_slack.send_message.assert_called_once()
 
     def test_invalid_signature_returns_401(self):
         with patch("app.main.settings") as mock_settings:

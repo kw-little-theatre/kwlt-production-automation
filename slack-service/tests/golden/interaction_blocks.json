@@ -57,7 +57,16 @@
               {
                 "type": "button",
                 "text": { "type": "plain_text", "text": "↩️ Undo", "emoji": true },
-                "action_id": "mark_undone:Test%20Show:Submit%20poster%20for%20approval"
+                "action_id": "mark_undone:Test%20Show:Submit%20poster%20for%20approval",
+                "confirm": {
+                  "title": { "type": "plain_text", "text": "Reopen this task?" },
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "This marks *Submit poster for approval* as not done and reminders will resume."
+                  },
+                  "confirm": { "type": "plain_text", "text": "Reopen" },
+                  "deny": { "type": "plain_text", "text": "Cancel" }
+                }
               }
             ]
           }

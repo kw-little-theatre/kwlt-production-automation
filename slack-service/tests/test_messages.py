@@ -14,6 +14,7 @@ import pytest
 
 from app.messages import (
     build_mark_done_confirmation,
+    build_mark_undone_message,
     build_readthrough_confirmation,
     build_readthrough_date_prompt,
     build_reminder_blocks,
@@ -103,6 +104,20 @@ class TestInteractionBlocks:
     def test_mark_done_confirmation(self, golden):
         result = build_mark_done_confirmation("Test Show", "Submit poster for approval", "<@U12345>")
         assert result == golden["mark_done_confirmation"]
+
+    def test_mark_done_undo_button_has_confirm_dialog(self):
+        """The Undo button must require confirmation to prevent accidental reopens."""
+        result = build_mark_done_confirmation("Test Show", "Submit poster for approval", "<@U12345>")
+        undo_button = result["attachments"][0]["blocks"][1]["elements"][0]
+        assert "confirm" in undo_button
+        assert undo_button["confirm"]["confirm"]["text"] == "Reopen"
+
+    def test_mark_undone_message_reopens_with_mark_done_button(self):
+        result = build_mark_undone_message("Test Show", "Submit poster for approval", "<@U12345>")
+        blocks = result["attachments"][0]["blocks"]
+        assert "reopened by <@U12345>" in blocks[0]["text"]["text"]
+        action_id = blocks[1]["elements"][0]["action_id"]
+        assert action_id.startswith("mark_done:")
 
     def test_readthrough_confirmation(self, golden):
         result = build_readthrough_confirmation(

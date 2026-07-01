@@ -124,6 +124,36 @@ class SlackClient:
         except Exception as e:
             logger.error(f"Failed to send response_url message: {e}")
 
+    def replace_original_message(
+        self,
+        response_url: str,
+        text: str = "",
+        attachments: Optional[list] = None,
+    ) -> None:
+        """
+        Replace the original interactive message in-place via its response_url.
+        Used to edit a reminder into a 'done'/'reopened' state instead of posting
+        a new (spammy) follow-up message.
+        """
+        if not response_url:
+            return
+
+        # Validate the URL is a legitimate Slack endpoint (SSRF protection)
+        if not response_url.startswith("https://hooks.slack.com/"):
+            logger.warning(f"Rejecting non-Slack response_url: {response_url}")
+            return
+
+        import httpx
+
+        payload: dict = {"replace_original": True, "text": text}
+        if attachments:
+            payload["attachments"] = attachments
+
+        try:
+            httpx.post(response_url, json=payload, timeout=5.0)
+        except Exception as e:
+            logger.error(f"Failed to replace original message: {e}")
+
     def publish_home_tab(self, user_id: str, view: dict) -> dict:
         """
         Publish (create or update) the App Home tab view for a user.

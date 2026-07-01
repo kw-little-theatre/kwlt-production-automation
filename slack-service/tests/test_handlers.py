@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 from typing import Optional
 
 from app.handlers import handle_block_action
-from app.models import MarkTaskResult
+from app.models import MarkTaskResult, SetReadthroughResult
 
 
 class TestHandleMarkDone:
@@ -24,8 +24,8 @@ class TestHandleMarkDone:
             "response_url": "https://hooks.slack.com/actions/test",
         }
 
-    def test_mark_done_success_sends_confirmation(self):
-        """Successful mark done should send a confirmation with Undo button."""
+    def test_mark_done_success_edits_original_message(self):
+        """Successful mark done should edit the original reminder in place, not post a new message."""
         sheets = MagicMock()
         sheets.mark_task_done.return_value = MarkTaskResult(success=True, message="Task marked as done.")
         slack = MagicMock()
@@ -34,14 +34,16 @@ class TestHandleMarkDone:
         handle_block_action("mark_done:Test%20Show:Book%20extra%20audition%20days", payload, sheets, slack)
 
         sheets.mark_task_done.assert_called_once_with("Test Show", "Book extra audition days")
-        slack.send_message.assert_called_once()
-        # Verify confirmation was sent to the right channel with attachments
-        call_args = slack.send_message.call_args
-        assert call_args[0][0] == "C12345"  # channel is first positional arg
-        assert "attachments" in call_args[1]
+        # Edits in place: first a loading state, then the final done confirmation
+        assert slack.replace_original_message.call_count == 2
+        slack.send_message.assert_not_called()
+        final_call = slack.replace_original_message.call_args
+        assert final_call[0][0] == "https://hooks.slack.com/actions/test"  # response_url
+        final_text = final_call[1]["attachments"][0]["blocks"][0]["text"]["text"]
+        assert "marked done" in final_text
 
-    def test_mark_done_failure_sends_error(self):
-        """Failed mark done should send error via response_url."""
+    def test_mark_done_failure_shows_retry(self):
+        """Failed mark done should replace the loading state with a retry message."""
         sheets = MagicMock()
         sheets.mark_task_done.return_value = MarkTaskResult(success=False, message="Task not found.")
         slack = MagicMock()
@@ -50,9 +52,10 @@ class TestHandleMarkDone:
         handle_block_action("mark_done:Show:Task", payload, sheets, slack)
 
         sheets.mark_task_done.assert_called_once_with("Show", "Task")
-        slack.send_response_url.assert_called_once()
-        call_args = slack.send_response_url.call_args[0]
-        assert "Could not mark task done" in call_args[1]
+        # Loading state + failure state, both via in-place edit
+        assert slack.replace_original_message.call_count == 2
+        final_text = slack.replace_original_message.call_args[1]["attachments"][0]["blocks"][0]["text"]["text"]
+        assert "Couldn't mark" in final_text
 
     def test_mark_done_decodes_url_encoded_values(self):
         """Show and task names with special chars should be URL-decoded."""
@@ -65,8 +68,8 @@ class TestHandleMarkDone:
 
         sheets.mark_task_done.assert_called_once_with("My Show & More", "Task with spaces")
 
-    def test_mark_done_falls_back_to_response_url_without_channel(self):
-        """When channel is empty, should use response_url instead of send_message."""
+    def test_mark_done_edits_original_even_without_channel(self):
+        """Even when channel is empty, the original message is edited via response_url."""
         sheets = MagicMock()
         sheets.mark_task_done.return_value = MarkTaskResult(success=True, message="Done.")
         slack = MagicMock()
@@ -76,8 +79,7 @@ class TestHandleMarkDone:
         handle_block_action("mark_done:Show:Task", payload, sheets, slack)
 
         slack.send_message.assert_not_called()
-        slack.send_response_url.assert_called_once()
-        assert "marked done" in slack.send_response_url.call_args[0][1]
+        assert slack.replace_original_message.called
 
 
 class TestHandleMarkUndone:
@@ -100,8 +102,9 @@ class TestHandleMarkUndone:
         handle_block_action("mark_undone:Show:Task", self._make_payload("mark_undone:Show:Task"), sheets, slack)
 
         sheets.mark_task_undone.assert_called_once_with("Show", "Task")
-        slack.send_response_url.assert_called_once()
-        assert "marked undone" in slack.send_response_url.call_args[0][1]
+        # Edits the message in place instead of posting a new one
+        slack.replace_original_message.assert_called_once()
+        slack.send_message.assert_not_called()
 
     def test_mark_undone_failure(self):
         sheets = MagicMock()
@@ -126,16 +129,36 @@ class TestHandleReadthroughDate:
             "response_url": "https://hooks.slack.com/actions/test",
         }
 
-    def test_date_selected_sends_confirmation(self):
+    def test_date_selected_persists_and_sends_confirmation(self):
         sheets = MagicMock()
+        sheets.set_readthrough_date.return_value = SetReadthroughResult(
+            success=True, message="Readthrough date set to 2026-06-15"
+        )
         slack = MagicMock()
 
         payload = self._make_payload("readthrough_date:Test%20Show", "2026-06-15")
         handle_block_action("readthrough_date:Test%20Show", payload, sheets, slack)
 
+        # The date must be written to the sheet (the core bug fix)
+        sheets.set_readthrough_date.assert_called_once_with("Test Show", "2026-06-15")
+
         slack.send_message.assert_called_once()
         call_args = slack.send_message.call_args
         assert call_args[0][0] == "C12345"  # channel is first positional arg
+
+    def test_failed_persist_sends_error_and_no_confirmation(self):
+        sheets = MagicMock()
+        sheets.set_readthrough_date.return_value = SetReadthroughResult(
+            success=False, message='Show "Test Show" not found in Show Setup.'
+        )
+        slack = MagicMock()
+
+        payload = self._make_payload("readthrough_date:Test%20Show", "2026-06-15")
+        handle_block_action("readthrough_date:Test%20Show", payload, sheets, slack)
+
+        slack.send_message.assert_not_called()
+        slack.send_response_url.assert_called_once()
+        assert "Could not set readthrough date" in slack.send_response_url.call_args[0][1]
 
     def test_no_date_sends_error(self):
         sheets = MagicMock()

@@ -34,8 +34,11 @@ from app.messages import (
     build_home_tab,
     build_home_tab_select_show,
     build_mark_done_confirmation,
+    build_mark_undone_message,
     build_readthrough_confirmation,
     build_readthrough_date_prompt,
+    build_task_action_failed_message,
+    build_task_processing_message,
     build_welcome_message,
 )
 from app.sheets import SheetRepository
@@ -357,25 +360,34 @@ def _handle_mark_done(
 ) -> None:
     """Handle the Mark Done button interaction."""
     show_name, task_text = _parse_action_id(action_id, "mark_done:")
+
+    # Immediately swap the message to a buttonless loading state. This registers
+    # the click instantly (snappier) and removes the buttons during the sheet
+    # write so a fast second click can't land on the Undo button.
+    if response_url:
+        processing = build_task_processing_message(task_text, "Marking done")
+        slack.replace_original_message(response_url, attachments=processing["attachments"])
+
     result = sheets.mark_task_done(show_name, task_text)
 
     if result.success:
-        if channel:
-            # Send confirmation with Undo button to the channel
-            msg = build_mark_done_confirmation(show_name, task_text, user_name)
+        msg = build_mark_done_confirmation(show_name, task_text, user_name)
+        if response_url:
+            # Edit the original reminder in place instead of posting a new message
+            slack.replace_original_message(response_url, attachments=msg["attachments"])
+        elif channel:
             slack.send_message(channel, attachments=msg["attachments"])
+    else:
+        if response_url:
+            # Don't leave the message stuck on the loading state — show a retry
+            fail = build_task_action_failed_message(show_name, task_text, result.message)
+            slack.replace_original_message(response_url, attachments=fail["attachments"])
         else:
             slack.send_response_url(
                 response_url,
-                f"✅ *{task_text}* marked done by {user_name}",
-                ephemeral=False,
+                f"⚠️ Could not mark task done: {result.message}",
+                ephemeral=True,
             )
-    else:
-        slack.send_response_url(
-            response_url,
-            f"⚠️ Could not mark task done: {result.message}",
-            ephemeral=True,
-        )
 
 
 # ─── Mark Undone ───────────────────────────────────────────────────────────────
@@ -393,11 +405,16 @@ def _handle_mark_undone(
     result = sheets.mark_task_undone(show_name, task_text)
 
     if result.success:
-        slack.send_response_url(
-            response_url,
-            f"↩️ *{task_text}* marked undone by {user_name} — reminders will resume.",
-            ephemeral=False,
-        )
+        if response_url:
+            # Edit the message in place — reopen with a Mark Done button
+            msg = build_mark_undone_message(show_name, task_text, user_name)
+            slack.replace_original_message(response_url, attachments=msg["attachments"])
+        else:
+            slack.send_response_url(
+                response_url,
+                f"↩️ *{task_text}* marked undone by {user_name} — reminders will resume.",
+                ephemeral=False,
+            )
     else:
         slack.send_response_url(
             response_url,
@@ -456,9 +473,17 @@ def _handle_readthrough_date(
 
     logger.info(f"Readthrough date picker: show={show_name}, date={selected_date}, user={user_name}")
 
-    # TODO: Implement _setReadthroughDate equivalent in SheetRepository
-    # For now, send confirmation — the full implementation will be added
-    # when we port the readthrough reactivation logic
+    # Persist the date to the Show Setup sheet. This stops the daily prompt and
+    # lets the daily Apps Script trigger reactivate readthrough-dependent tasks.
+    result = sheets.set_readthrough_date(show_name, selected_date)
+    if not result.success:
+        slack.send_response_url(
+            response_url,
+            f"⚠️ Could not set readthrough date: {result.message}",
+            ephemeral=True,
+        )
+        return
+
     if channel:
         msg = build_readthrough_confirmation(show_name, selected_date, user_name)
         slack.send_message(channel, attachments=msg["attachments"])

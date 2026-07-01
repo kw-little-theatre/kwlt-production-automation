@@ -20,6 +20,7 @@ from google.auth import default as google_default
 from google.oauth2.service_account import Credentials
 
 from app.constants import (
+    ANCHOR_READTHROUGH,
     COL,
     SETUP_COL,
     SHEET_SEND_LOG,
@@ -28,7 +29,7 @@ from app.constants import (
     SHOW_TIMELINE_COLS,
     STATUS,
 )
-from app.models import MarkTaskResult
+from app.models import MarkTaskResult, SetReadthroughResult
 
 logger = logging.getLogger(__name__)
 
@@ -318,6 +319,98 @@ class SheetRepository:
                 }
 
         return None
+
+    def set_readthrough_date(self, show_name: str, date_str: str) -> SetReadthroughResult:
+        """
+        Sets the readthrough date for a show in the Show Setup sheet and clears
+        the "Readthrough Prompt Last Sent" tracking so the daily date-picker
+        prompt stops firing. Port of _setReadthroughDate() from WebApp.gs.
+
+        Persisting the date is all this needs to do: the daily Apps Script
+        trigger (_reactivateReadthroughTasks) recomputes deadlines and
+        reactivates readthrough-dependent tasks on its next run once the date
+        is present in the sheet.
+        """
+        try:
+            sheet = self.spreadsheet.worksheet(SHEET_SHOW_SETUP)
+        except gspread.WorksheetNotFound:
+            return SetReadthroughResult(success=False, message="Show Setup sheet not found.")
+
+        # Validate the date before touching the sheet
+        try:
+            datetime.strptime(date_str, "%Y-%m-%d")
+        except ValueError:
+            return SetReadthroughResult(success=False, message=f"Invalid date: {date_str}")
+
+        data = sheet.get_all_values()
+        if len(data) < 2:
+            return SetReadthroughResult(success=False, message="Show Setup sheet is empty.")
+
+        headers = data[0]
+        # Find the Readthrough Date column (header starts with the anchor label)
+        readthrough_col = next(
+            (i for i, h in enumerate(headers) if str(h).startswith(ANCHOR_READTHROUGH)),
+            -1,
+        )
+        if readthrough_col == -1:
+            return SetReadthroughResult(
+                success=False,
+                message="Readthrough Date column not found in Show Setup.",
+            )
+
+        prompt_col = (
+            headers.index("Readthrough Prompt Last Sent")
+            if "Readthrough Prompt Last Sent" in headers
+            else -1
+        )
+
+        for row_idx, raw_row in enumerate(data[1:], start=2):  # 1-indexed, skip header
+            row = list(raw_row)
+            while len(row) <= readthrough_col:
+                row.append("")
+
+            if row[SETUP_COL.SHOW_NAME].strip() != show_name:
+                continue
+
+            previous_value = row[readthrough_col].strip()
+            was_change = bool(previous_value)
+
+            # No-op if the date is unchanged
+            if previous_value == date_str:
+                return SetReadthroughResult(
+                    success=True, message="Date unchanged.", reactivated=0, was_change=False
+                )
+
+            updates = [
+                {
+                    "range": gspread.utils.rowcol_to_a1(row_idx, readthrough_col + 1),
+                    "values": [[date_str]],
+                }
+            ]
+            # Clear the prompt tracking so daily prompts stop
+            if prompt_col != -1:
+                updates.append(
+                    {
+                        "range": gspread.utils.rowcol_to_a1(row_idx, prompt_col + 1),
+                        "values": [[""]],
+                    }
+                )
+            sheet.batch_update(updates, value_input_option="USER_ENTERED")
+
+            logger.info(
+                f'Readthrough date for "{show_name}" set to {date_str} via Slack date picker'
+                + (f" (changed from {previous_value})" if was_change else "")
+            )
+            return SetReadthroughResult(
+                success=True,
+                message=f"Readthrough date set to {date_str}",
+                reactivated=0,
+                was_change=was_change,
+            )
+
+        return SetReadthroughResult(
+            success=False, message=f'Show "{show_name}" not found in Show Setup.'
+        )
 
     def get_upcoming_tasks(self, show_name: str, limit: int = 5) -> list[dict]:
         """
