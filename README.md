@@ -57,6 +57,20 @@ Automated reminder system for Kitchener-Waterloo Little Theatre production teams
 └──────────────────────────────────────────────────────────────┘
 ```
 
+### Slack Service (Python / Cloud Run)
+
+Slack **interactions** (button clicks, date pickers, modal submissions), the
+Events API (welcome messages, `@bot` FAQ, App Home tab), and outbound reminder
+messages are handled by a companion **FastAPI service** in [`slack-service/`](slack-service/),
+deployed to Google Cloud Run. The Apps Script project above stays the data layer
+and daily reminder engine; it routes its Slack sends through this service (and
+falls back to sending directly if the service is unreachable). The Slack app's
+Interactivity and Events Request URLs both point at this service.
+
+**For anything involving the Python service — local testing, authentication, or
+deployment — see [`slack-service/README.md`](slack-service/README.md).** The rest
+of this README covers the Apps Script component.
+
 ## Deployment
 
 There are **two ways** to deploy this. Choose whichever you're more comfortable with.
@@ -140,7 +154,7 @@ The app supports a fully isolated test environment using a **separate Google She
 
 8. **Verify**: 🎭 KWLT Automation → 🧪 Test All Message Types — messages should arrive in `#automation-test` and your personal email, not production channels
 
-> **Slack interactivity note**: A Slack app can only have one Interactivity Request URL at a time. For testing Mark Done buttons and date pickers, temporarily change the URL in your Slack app settings to the test web app URL, or create a second Slack app for testing. Non-interactive features (reminders, digests) work without this.
+> **Slack interactivity note**: A Slack app can only have one Interactivity Request URL at a time. Interactions are handled by the Python service (see [`slack-service/README.md`](slack-service/README.md)). To test Mark Done buttons and date pickers against a local build, run the service locally and point the URL at your ngrok tunnel, then point it back to the Cloud Run URL when done. Non-interactive features (reminders, digests) work without this.
 
 ### Switching environments
 
@@ -287,6 +301,11 @@ src/
 env.sh                    — Switch clasp between prod/test environments
 .clasp-prod.json          — Clasp config for production (gitignored)
 .clasp-test.json          — Clasp config for test (gitignored)
+
+slack-service/            — Python/FastAPI Slack service on Cloud Run
+                            (Slack interactions, events, App Home tab).
+                            See slack-service/README.md for testing,
+                            authentication, and deployment.
 ```
 
 ## Troubleshooting

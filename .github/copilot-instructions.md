@@ -6,6 +6,20 @@ This is a Google Apps Script project that automates production task reminders fo
 
 The codebase is in `src/` and is deployed to Google Apps Script via `clasp push`. The web app must be **redeployed** (new version) after pushing for the `/exec` endpoint to pick up changes.
 
+There is also a companion **Python/FastAPI service in `slack-service/`** (deployed to Google Cloud Run) that handles all Slack interactions, Events API events, the App Home tab, and outbound reminder sends. Apps Script and the Python service share the Google Sheet as their data layer. This is a **hybrid architecture** — see the section below.
+
+## Slack Service (Python / Cloud Run)
+
+- **`slack-service/` is the primary handler for Slack interactions** (button clicks, date pickers, modals) and Events (welcome, `@mentions`, App Home tab). The Slack app's Interactivity and Events Request URLs point at this service, **not** at Apps Script. Apps Script's `doPost` is legacy/fallback.
+- Apps Script routes its outbound Slack sends through this service when `PYTHON_SERVICE_URL` is set (falls back to direct Slack if unreachable).
+- **Canonical dev/testing/auth guide: [`slack-service/README.md`](../slack-service/README.md).** Read it before working on the service. Key facts future-you will need:
+  - **Auth:** `SheetRepository` tries ADC first. Prod runs as `kwlt-slackbot@kwlt-slackbot.iam.gserviceaccount.com` (attached SA + Secret Manager mount). Local dev uses **impersonated ADC** (`gcloud auth application-default login --impersonate-service-account=kwlt-slackbot@…`) — plain user ADC with the sheets scope is org-blocked. There is **no committed key file** (a leaked one was rotated; don't add another).
+  - **Sandbox gotcha:** ADC lives in `~/.config/gcloud`, which sandboxes block, so **run `gcloud` and `uvicorn` unsandboxed**. A clean uvicorn startup (no `cache warming failed` traceback) means Sheets auth worked.
+  - **Local testing:** `./env.sh test` (switches `.env` + clasp to test), run `uvicorn app.main:app --port 8080` (unsandboxed), expose via `ngrok http 8080`, point the Slack Interactivity URL at `<ngrok>/slack/interactions`. **After testing, repoint the URL to the Cloud Run prod URL and run `./env.sh prod`.**
+  - **Tests/lint:** `python -m pytest tests/ -q` and `ruff check .` (from `slack-service/`, venv activated). Tests mock Slack + Sheets — no creds needed. Golden Block Kit payloads live in `tests/golden/`.
+  - **Deploy:** manual, from `slack-service/`: `gcloud run deploy kwlt-slack-service --source . --project=kwlt-slackbot --region=us-east1 --service-account=kwlt-slackbot@kwlt-slackbot.iam.gserviceaccount.com` (the `--service-account` flag is required).
+  - **When editing handlers**, remember every button `action_id` in `messages.py` needs a matching branch in `handle_block_action` (`handlers.py`) — a missing/stub handler silently no-ops (this is the class of bug that left readthrough dates unsaved).
+
 ## Key Architecture Decisions
 
 - **Google Apps Script runtime** — all code runs server-side in Google's V8 environment. No npm, no modules, no `import`/`export`. All `.gs` files share a single global scope.

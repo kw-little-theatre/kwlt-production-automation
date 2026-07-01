@@ -110,7 +110,7 @@ Currently, if an anchor date (Opening Night, Audition Start, etc.) is changed in
 
 ## Longer-term: Standalone KWLT Slack App
 
-> **Status: IN PROGRESS** — The standalone Python Slack service (`slack-service/`) has been built with FastAPI. Phases 0-2 are complete. See next steps below.
+> **Status: LIVE** — The standalone Python Slack service (`slack-service/`) is built with FastAPI and **deployed to Google Cloud Run**. Phases 0–3.7 are complete and running in production; Slack Interactivity and Events URLs point at the Cloud Run service. Remaining work is Phases 4–5 (RAG Q&A + eval harness). See [`slack-service/README.md`](slack-service/README.md) for testing, auth, and deployment.
 
 ### Current progress
 
@@ -155,7 +155,11 @@ Currently, if an anchor date (Opening Night, Audition Start, etc.) is changed in
 
 6. **Phase 5 — Eval Harness**: 30-50 Q&A test cases, eval dimensions (retrieval recall, correctness, faithfulness, relevance), GPT-4o as judge, CI integration.
 
-7. **Deploy to Cloud Run**: `gcloud run deploy`, point Slack Interactivity URL permanently to Cloud Run URL.
+7. ~~**Deploy to Cloud Run**~~: ✅ Done
+   - Service `kwlt-slack-service` in project `kwlt-slackbot` (region `us-east1`)
+   - Runs as the `kwlt-slackbot` service account; Sheets auth via ADC (no key file in the image)
+   - Slack Interactivity + Events URLs point permanently at the Cloud Run URL
+   - Manual deploy from source; CI runs tests on push. See `slack-service/README.md`.
 
 ### Architecture decisions made
 Separate the Slack bot from the Apps Script spreadsheet into a standalone app that becomes the general-purpose hub for the KWLT ecosystem. The spreadsheet stays as the data layer and reminder engine; the Slack app becomes the interface for everything.
